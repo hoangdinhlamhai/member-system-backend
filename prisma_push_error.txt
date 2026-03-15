@@ -1,0 +1,32 @@
+﻿node.exe : Environment 
+variables loaded from .env
+At C:\Users\ADMIN\AppData\Ro
+aming\npm\npx.ps1:24 char:5
++     & "node$exe"  "$basedi
+r/node_modules/npm/bin/npx-c
+li.js" $args
++     ~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~
+    + CategoryInfo          
+    : NotSpecified: (Envir  
+  onment variables loaded   
+  from .env:String) [],     
+RemoteException
+    + FullyQualifiedErrorId 
+    : NativeCommandError
+ 
+Prisma schema loaded from prisma\schema.prisma
+Datasource "db": PostgreSQL database "neondb", schema "public" at "ep-bold-resonance-a1fzqvcd-pooler.ap-southeast-1.aws.neon.tech"
+
+Error: P1001: Can't reach 
+database server at `ep-bold-
+resonance-a1fzqvcd-pooler.ap
+-southeast-1.aws.neon.tech:5
+432`
+
+Please make sure your 
+database server is running 
+at `ep-bold-resonance-a1fzqv
+cd-pooler.ap-southeast-1.aws
+.neon.tech:5432`.

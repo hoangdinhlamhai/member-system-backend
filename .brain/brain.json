@@ -1,0 +1,61 @@
+{
+  "meta": {
+    "schema_version": "1.1.0",
+    "awf_version": "3.3.0",
+    "last_synced": "2026-03-14"
+  },
+  "project": {
+    "name": "Member System ZODUT Backend",
+    "type": "NestJS API",
+    "status": "In Development (Zalo Auth Ready)"
+  },
+  "tech_stack": {
+    "backend": "NestJS v11",
+    "database": "PostgreSQL (Neon)",
+    "orm": "Prisma v6",
+    "auth": "Passport JWT + Zalo Graph API",
+    "validation": "class-validator"
+  },
+  "database_schema": {
+    "summary": "Quản lý Members và quan hệ Referrals giới thiệu F1.",
+    "tables": [
+      {
+        "name": "Member",
+        "description": "Thông tin thành viên từ Zalo và số dư điểm."
+      },
+      {
+        "name": "Referral",
+        "description": "Ghi nhận quan hệ giới thiệu 1:1."
+      }
+    ]
+  },
+  "api_endpoints": [
+    {
+      "path": "/auth/zalo-login",
+      "method": "POST",
+      "explained": "Login bằng token Zalo, tự động tạo member và xử lý referral."
+    },
+    {
+      "path": "/auth/me",
+      "method": "GET",
+      "explained": "Verify JWT token và trả về profile basic."
+    }
+  ],
+  "features": [
+    "Verify Zalo Token",
+    "Decrypt Zalo Phone Number",
+    "Auto-generate Referral/QR Codes",
+    "JWT Session Management",
+    "F1 Referral tracking"
+  ],
+  "knowledge_items": {
+    "patterns": [
+      "Global PrismaModule",
+      "Phased Login flow (Verify -> Decrypt -> Member -> Referral -> JWT)"
+    ],
+    "gotchas": [
+      "Neon connection requires pgbouncer=true in URL",
+      "Zalo phone number is prefixed with 84, need to format to 0."
+    ]
+  }
+}

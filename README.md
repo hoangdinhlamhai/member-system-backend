@@ -23,7 +23,24 @@
 
 ## Description
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+Member System Backend for Zalo Mini App. Built with **NestJS**, **Prisma**, and **PostgreSQL (Neon)**.
+
+### Key Features
+- 🚀 **Zalo Login**: Social login via Zalo Mini App SDK.
+- 📱 **Phone Verification**: Secure phone decryption via Zalo Graph API.
+- 🎁 **Referral System**: Auto-tracking F1 referrals.
+- 💎 **Points Management**: Loyalty point system (In progress).
+
+## 📚 Documentation
+- [API Endpoints](docs/api/endpoints.md)
+- [Database Schema](docs/database/schema.md)
+- [Changelog](CHANGELOG.md)
+
+## 🛠️ Tech Stack
+- **Framework**: NestJS 11
+- **Database**: PostgreSQL + Prisma 6
+- **Auth**: Passport JWT
+- **ZMA Integration**: Zalo Graph API v2.0
 
 ## Project setup
 

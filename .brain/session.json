@@ -1,0 +1,55 @@
+{
+  "updated_at": "2026-03-14T01:10:00Z",
+  "working_on": {
+    "feature": "Zalo Authentication",
+    "phase": "phase-07",
+    "task": "Testing & Mocking",
+    "status": "completed",
+    "notes": "Mock mode enabled in .env and ZaloService"
+  },
+  "pending_tasks": [
+    {
+      "phase": "phase-08",
+      "task": "Final Review, Cleanup & Detailed Docs",
+      "priority": "low"
+    },
+    {
+      "task": "Integrate real Zalo App ID/Secret",
+      "priority": "high",
+      "notes": "Currently using mock data"
+    }
+  ],
+  "recent_changes": [
+    {
+      "description": "Implemented full Zalo Auth flow (Phase 1-7)",
+      "files": [
+        "src/zalo/*",
+        "src/auth/*",
+        "src/members/*",
+        "src/referrals/*"
+      ]
+    }
+  ],
+  "decisions_made": [
+    {
+      "decision": "Use Mock Mode instead of real tokens for development",
+      "reason": "Faster debug without ZMA environment"
+    },
+    {
+      "decision": "Store phone in standard 0xxxx format",
+      "reason": "Consistency with other VN systems"
+    }
+  ],
+  "errors_encountered": [
+    {
+      "error": "Prisma connection pooler issues",
+      "solution": "Added pgbouncer=true to DATABASE_URL",
+      "resolved": true
+    },
+    {
+      "error": "JWT signOptions expiresIn type error",
+      "solution": "Used 'as any' casting for StringValue compatibility",
+      "resolved": true
+    }
+  ]
+}

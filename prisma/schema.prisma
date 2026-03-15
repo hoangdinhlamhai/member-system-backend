@@ -1,0 +1,409 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------
+// 3.1. Thương hiệu & Chi nhánh
+// ------------------------------------------------------
+
+model Brand {
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String         @db.VarChar(100)
+  slug          String         @unique @db.VarChar(50)
+  logoUrl       String?        @map("logo_url") @db.Text
+  zaloOaId      String?        @map("zalo_oa_id") @db.VarChar(50)
+  isActive      Boolean?       @default(true) @map("is_active")
+  createdAt     DateTime?      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime?      @default(now()) @map("updated_at") @db.Timestamptz
+
+  branches      Branch[]
+  rewards       RewardCatalog[]
+  discountTiers DiscountTier[]
+  systemConfigs SystemConfig[]
+
+  @@map("brands")
+}
+
+model Branch {
+  id              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  brandId         String?            @map("brand_id") @db.Uuid
+  address         String?            @db.Text
+  phone           String?            @db.VarChar(20)
+  cukcukBranchId  String?            @map("cukcuk_branch_id") @db.VarChar(100)
+  webhookSecret   String?            @map("webhook_secret") @db.VarChar(255)
+  isActive        Boolean?           @default(true) @map("is_active")
+  createdAt       DateTime?          @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime?          @default(now()) @map("updated_at") @db.Timestamptz
+
+  brand           Brand?             @relation(fields: [brandId], references: [id])
+  posMappings     MemberPosMapping[]
+  transactions    Transaction[]
+  redemptions     Redemption[]
+  staff           Staff[]
+
+  @@map("branches")
+}
+
+// ------------------------------------------------------
+// 3.2. Thành viên (Members)
+// ------------------------------------------------------
+
+model Member {
+  id                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  zaloId             String             @unique @map("zalo_id") @db.VarChar(50)
+  zaloName           String?            @map("zalo_name") @db.VarChar(100)
+  zaloAvatar         String?            @map("zalo_avatar") @db.Text
+  phone              String?            @db.VarChar(15)
+  fullName           String?            @map("full_name") @db.VarChar(100)
+  
+  status             String?            @default("verified") @db.VarChar(20)
+  qrCode             String             @unique @map("qr_code") @db.VarChar(50)
+  referralCode       String             @unique @map("referral_code") @db.VarChar(20)
+
+  referredById       String?            @map("referred_by") @db.Uuid
+  totalReferrals     Int?               @default(0) @map("total_referrals")
+
+  pointsBalance      Int?               @default(0) @map("points_balance")
+  pointsEarned       Int?               @default(0) @map("points_earned")
+  pointsSpent        Int?               @default(0) @map("points_spent")
+
+  lifetimeSpending   BigInt?            @default(0) @map("lifetime_spending")
+  monthlySpending    BigInt?            @default(0) @map("monthly_spending")
+
+  isFollowingOa      Boolean?           @default(false) @map("is_following_oa")
+  isActive           Boolean?           @default(true) @map("is_active")
+  lastActiveAt       DateTime?          @map("last_active_at") @db.Timestamptz
+  createdAt          DateTime?          @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime?          @default(now()) @map("updated_at") @db.Timestamptz
+
+  // Relations
+  referredBy         Member?            @relation("MemberToMember", fields: [referredById], references: [id])
+  referees           Member[]           @relation("MemberToMember")
+  posMappings        MemberPosMapping[]
+  tierHistories      TierHistory[]
+  referralsMade      Referral[]         @relation("Referrer")
+  referralReceived   Referral?          @relation("Referee")
+  referralEarningsAsReferrer ReferralEarning[] @relation("EarningReferrer")
+  referralEarningsAsReferee  ReferralEarning[] @relation("EarningReferee")
+  transactions       Transaction[]
+  pointTransactions  PointTransaction[]
+  redemptions        Redemption[]
+
+  @@index([zaloId], name: "idx_members_zalo_id")
+  @@index([phone], name: "idx_members_phone")
+  @@index([referralCode], name: "idx_members_referral_code")
+  @@index([referredById], name: "idx_members_referred_by")
+  @@map("members")
+}
+
+model MemberPosMapping {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  memberId        String    @map("member_id") @db.Uuid
+  posCustomerId   String    @unique @map("pos_customer_id") @db.VarChar(100)
+  branchId        String?   @map("branch_id") @db.Uuid
+  createdAt       DateTime? @default(now()) @map("created_at") @db.Timestamptz
+
+  member          Member    @relation(fields: [memberId], references: [id])
+  branch          Branch?   @relation(fields: [branchId], references: [id])
+
+  @@map("member_pos_mappings")
+}
+
+// ------------------------------------------------------
+// 3.3. Hạng thẻ (Tiers)
+// ------------------------------------------------------
+
+model Tier {
+  id                   String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                 String        @db.VarChar(50)
+  slug                 String        @db.VarChar(20)
+  displayOrder         Int           @map("display_order")
+  minSpending          BigInt        @map("min_spending")
+  pointsMultiplier     Decimal?      @default(1.0) @map("points_multiplier") @db.Decimal(3,1)
+  referralBonusPercent Decimal?      @default(5.0) @map("referral_bonus_percent") @db.Decimal(4,2)
+  themeConfig          Json?         @map("theme_config")
+  isActive             Boolean?      @default(true) @map("is_active")
+  createdAt            DateTime?     @default(now()) @map("created_at") @db.Timestamptz
+
+  historiesFrom        TierHistory[] @relation("FromTier")
+  historiesTo          TierHistory[] @relation("ToTier")
+
+  @@map("tiers")
+}
+
+model TierHistory {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  memberId           String    @map("member_id") @db.Uuid
+  fromTierId         String?   @map("from_tier_id") @db.Uuid
+  toTierId           String    @map("to_tier_id") @db.Uuid
+  reason             String    @db.VarChar(50)
+  spendingAtChange   BigInt?   @map("spending_at_change")
+  createdAt          DateTime? @default(now()) @map("created_at") @db.Timestamptz
+
+  member             Member    @relation(fields: [memberId], references: [id])
+  fromTier           Tier?     @relation("FromTier", fields: [fromTierId], references: [id])
+  toTier             Tier      @relation("ToTier", fields: [toTierId], references: [id])
+
+  @@map("tier_histories")
+}
+
+// ------------------------------------------------------
+// 3.4. Hệ thống Referral (2 tầng ngang hàng)
+// ------------------------------------------------------
+
+model Referral {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  referrerId        String            @map("referrer_id") @db.Uuid
+  refereeId         String            @unique @map("referee_id") @db.Uuid
+  status            String?           @default("pending") @db.VarChar(20)
+  totalBills        Int?              @default(0) @map("total_bills")
+  totalBillAmount   BigInt?           @default(0) @map("total_bill_amount")
+  totalEarned       BigInt?           @default(0) @map("total_earned")
+  activatedAt       DateTime?         @map("activated_at") @db.Timestamptz
+  createdAt         DateTime?         @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime?         @default(now()) @map("updated_at") @db.Timestamptz
+
+  referrer          Member            @relation("Referrer", fields: [referrerId], references: [id])
+  referee           Member            @relation("Referee", fields: [refereeId], references: [id])
+  earnings          ReferralEarning[]
+
+  @@index([referrerId], name: "idx_referrals_referrer")
+  @@map("referrals")
+}
+
+model ReferralEarning {
+  id               String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  referralId       String      @map("referral_id") @db.Uuid
+  referrerId       String      @map("referrer_id") @db.Uuid
+  refereeId        String      @map("referee_id") @db.Uuid
+  transactionId    String      @map("transaction_id") @db.Uuid
+  billAmount       BigInt      @map("bill_amount")
+  earnPercent      Decimal     @map("earn_percent") @db.Decimal(4,2)
+  earnAmount       BigInt      @map("earn_amount")
+  pointsAwarded    Int         @map("points_awarded")
+  createdAt        DateTime?   @default(now()) @map("created_at") @db.Timestamptz
+
+  referral         Referral    @relation(fields: [referralId], references: [id])
+  referrer         Member      @relation("EarningReferrer", fields: [referrerId], references: [id])
+  referee          Member      @relation("EarningReferee", fields: [refereeId], references: [id])
+  transaction      Transaction @relation(fields: [transactionId], references: [id])
+
+  @@index([referrerId], name: "idx_referral_earnings_referrer")
+  @@index([refereeId], name: "idx_referral_earnings_referee")
+  @@index([transactionId], name: "idx_referral_earnings_transaction")
+  @@map("referral_earnings")
+}
+
+// ------------------------------------------------------
+// 3.5. Giao dịch (Transactions)
+// ------------------------------------------------------
+
+model Transaction {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  memberId          String?           @map("member_id") @db.Uuid
+  branchId          String            @map("branch_id") @db.Uuid
+  posBillId         String?           @unique @map("pos_bill_id") @db.VarChar(100)
+  posBillCode       String?           @map("pos_bill_code") @db.VarChar(100)
+  amount            BigInt
+  discountApplied   BigInt?           @default(0) @map("discount_applied")
+  finalAmount       BigInt            @map("final_amount")
+  itemsSummary      Json?             @map("items_summary")
+  source            String            @db.VarChar(20)
+  status            String            @default("pending_review") @db.VarChar(20)
+  
+  billImageUrl      String?           @map("bill_image_url") @db.Text
+  staffId           String?           @map("staff_id") @db.Uuid
+  reviewedBy        String?           @map("reviewed_by") @db.Uuid
+  reviewedAt        DateTime?         @map("reviewed_at") @db.Timestamptz
+  rejectReason      String?           @map("reject_reason") @db.Text
+  
+  isFirstVisit      Boolean?          @default(false) @map("is_first_visit")
+  billCreatedAt     DateTime?         @map("bill_created_at") @db.Timestamptz
+  webhookReceivedAt DateTime?         @map("webhook_received_at") @db.Timestamptz
+  createdAt         DateTime?         @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime?         @default(now()) @map("updated_at") @db.Timestamptz
+
+  member            Member?           @relation(fields: [memberId], references: [id])
+  branch            Branch            @relation(fields: [branchId], references: [id])
+  referralEarnings  ReferralEarning[]
+  redemptions       Redemption[]
+
+  @@index([memberId], name: "idx_transactions_member")
+  @@index([posBillId], name: "idx_transactions_pos_bill")
+  @@index([status], name: "idx_transactions_status")
+  @@index([billCreatedAt], name: "idx_transactions_bill_created")
+  @@map("transactions")
+}
+
+// ------------------------------------------------------
+// 3.6. Điểm
+// ------------------------------------------------------
+
+model PointTransaction {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  memberId        String    @map("member_id") @db.Uuid
+  type            String    @db.VarChar(30)
+  points          Int
+  balanceAfter    Int       @map("balance_after")
+  referenceType   String?   @map("reference_type") @db.VarChar(30)
+  referenceId     String?   @map("reference_id") @db.Uuid
+  note            String?   @db.Text
+  createdAt       DateTime? @default(now()) @map("created_at") @db.Timestamptz
+
+  member          Member    @relation(fields: [memberId], references: [id])
+
+  @@map("point_transactions")
+}
+
+// ------------------------------------------------------
+// 3.7. Đổi quà & Giảm giá
+// ------------------------------------------------------
+
+model RewardCatalog {
+  id                String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  brandId           String?      @map("brand_id") @db.Uuid
+  name              String       @db.VarChar(200)
+  description       String?      @db.Text
+  imageUrl          String?      @map("image_url") @db.Text
+  type              String       @db.VarChar(20)
+  pointsRequired    Int          @map("points_required")
+  quantityLimit     Int?         @map("quantity_limit")
+  quantityRedeemed  Int?         @default(0) @map("quantity_redeemed")
+  perMemberLimit    Int?         @default(1) @map("per_member_limit")
+  isActive          Boolean?     @default(true) @map("is_active")
+  validFrom         DateTime?    @map("valid_from") @db.Timestamptz
+  validUntil        DateTime?    @map("valid_until") @db.Timestamptz
+  createdAt         DateTime?    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime?    @default(now()) @map("updated_at") @db.Timestamptz
+
+  brand             Brand?       @relation(fields: [brandId], references: [id])
+  redemptions       Redemption[]
+
+  @@map("rewards_catalog")
+}
+
+model DiscountTier {
+  id                  String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  brandId             String?      @map("brand_id") @db.Uuid
+  discountPercent     Decimal      @map("discount_percent") @db.Decimal(4,2)
+  pointsRequired      Int          @map("points_required")
+  maxDiscountAmount   BigInt?      @map("max_discount_amount")
+  isActive            Boolean?     @default(true) @map("is_active")
+  createdAt           DateTime?    @default(now()) @map("created_at") @db.Timestamptz
+
+  brand               Brand?       @relation(fields: [brandId], references: [id])
+  redemptions         Redemption[]
+
+  @@map("discount_tiers")
+}
+
+model Redemption {
+  id                     String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  memberId               String        @map("member_id") @db.Uuid
+  type                   String        @db.VarChar(20)
+  rewardId               String?       @map("reward_id") @db.Uuid
+  discountTierId         String?       @map("discount_tier_id") @db.Uuid
+  discountPercent        Decimal?      @map("discount_percent") @db.Decimal(4,2)
+  appliedToTransactionId String?       @map("applied_to_transaction_id") @db.Uuid
+  discountAmount         BigInt?       @map("discount_amount")
+  voucherCode            String?       @map("voucher_code") @db.VarChar(50)
+  expiresAt              DateTime      @map("expires_at") @db.Timestamptz
+  redeemedAt             DateTime?     @map("redeemed_at") @db.Timestamptz
+  redeemedBy             String?       @map("redeemed_by") @db.Uuid
+  branchId               String?       @map("branch_id") @db.Uuid
+  createdAt              DateTime?     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt              DateTime?     @default(now()) @map("updated_at") @db.Timestamptz
+
+  member                 Member        @relation(fields: [memberId], references: [id])
+  reward                 RewardCatalog? @relation(fields: [rewardId], references: [id])
+  discountTier           DiscountTier? @relation(fields: [discountTierId], references: [id])
+  transaction            Transaction?  @relation(fields: [appliedToTransactionId], references: [id])
+  branch                 Branch?       @relation(fields: [branchId], references: [id])
+  staff                  Staff?        @relation(fields: [redeemedBy], references: [id])
+
+  @@index([voucherCode], name: "idx_redemptions_voucher")
+  @@index([memberId], name: "idx_redemptions_member")
+  @@map("redemptions")
+}
+
+// ------------------------------------------------------
+// 3.8. Nhân viên & Bảo mật
+// ------------------------------------------------------
+
+model Staff {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  branchId        String?        @map("branch_id") @db.Uuid
+  phone           String         @unique @db.VarChar(15)
+  fullName        String         @map("full_name") @db.VarChar(100)
+  zaloId          String?        @map("zalo_id") @db.VarChar(50)
+  role            String         @db.VarChar(30)
+  pinHash         String?        @map("pin_hash") @db.VarChar(255)
+  passwordHash    String?        @map("password_hash") @db.VarChar(255)
+  isActive        Boolean?       @default(true) @map("is_active")
+  createdAt       DateTime?      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime?      @default(now()) @map("updated_at") @db.Timestamptz
+
+  branch          Branch?        @relation(fields: [branchId], references: [id])
+  redemptions     Redemption[]
+  fraudAlerts     FraudAlert[]
+  configs         SystemConfig[]
+
+  @@map("staff")
+}
+
+model AuditLog {
+  id          BigInt    @id @default(autoincrement())
+  actorId     String?   @map("actor_id") @db.Uuid
+  actorType   String    @map("actor_type") @db.VarChar(20)
+  action      String    @db.VarChar(100)
+  entityType  String?   @map("entity_type") @db.VarChar(50)
+  entityId    String?   @map("entity_id") @db.Uuid
+  oldValue    Json?     @map("old_value")
+  newValue    Json?     @map("new_value")
+  ipAddress   String?   @map("ip_address") @db.Inet
+  createdAt   DateTime? @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("audit_logs")
+}
+
+model FraudAlert {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  severity      String    @db.VarChar(10)
+  subjectType   String    @map("subject_type") @db.VarChar(20)
+  subjectId     String    @map("subject_id") @db.Uuid
+  details       Json
+  status        String?   @default("open") @db.VarChar(20)
+  resolvedBy    String?   @map("resolved_by") @db.Uuid
+  resolvedNote  String?   @map("resolved_note") @db.Text
+  createdAt     DateTime? @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime? @default(now()) @map("updated_at") @db.Timestamptz
+
+  staff         Staff?    @relation(fields: [resolvedBy], references: [id])
+
+  @@map("fraud_alerts")
+}
+
+// ------------------------------------------------------
+// 3.9. Cấu hình hệ thống
+// ------------------------------------------------------
+
+model SystemConfig {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  brandId       String?   @map("brand_id") @db.Uuid
+  configKey     String    @map("config_key") @db.VarChar(100)
+  configValue   Json      @map("config_value")
+  description   String?   @db.Text
+  updatedBy     String?   @map("updated_by") @db.Uuid
+  updatedAt     DateTime? @default(now()) @map("updated_at") @db.Timestamptz
+
+  brand         Brand?    @relation(fields: [brandId], references: [id])
+  staff         Staff?    @relation(fields: [updatedBy], references: [id])
+
+  @@unique([brandId, configKey])
+  @@map("system_configs")
+}
