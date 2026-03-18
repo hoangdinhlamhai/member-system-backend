@@ -1,61 +1,96 @@
 {
   "meta": {
     "schema_version": "1.1.0",
-    "awf_version": "3.3.0",
-    "last_synced": "2026-03-14"
+    "awf_version": "4.0.2",
+    "last_updated": "2026-03-18T01:39:00+07:00"
   },
   "project": {
-    "name": "Member System ZODUT Backend",
-    "type": "NestJS API",
-    "status": "In Development (Zalo Auth Ready)"
+    "name": "Zô Dứt Cạn - Backend",
+    "type": "backend_api",
+    "status": "in_development",
+    "description": "Hệ thống Loyalty/CRM cho chuỗi F&B 'Zô Dứt Cạn', quản lý thành viên, tích điểm, thăng hạng, giới thiệu bạn bè (referral), và kết nối POS CUKCUK"
   },
   "tech_stack": {
-    "backend": "NestJS v11",
-    "database": "PostgreSQL (Neon)",
-    "orm": "Prisma v6",
-    "auth": "Passport JWT + Zalo Graph API",
-    "validation": "class-validator"
+    "runtime": "Node.js",
+    "framework": "NestJS v11",
+    "language": "TypeScript 5.7",
+    "orm": "Prisma 6.19",
+    "database": "PostgreSQL",
+    "auth": "Passport + JWT (@nestjs/jwt, passport-jwt)",
+    "validation": "class-validator + class-transformer",
+    "http_client": "axios",
+    "id_generator": "nanoid (referral codes, QR codes)",
+    "port": 3003
   },
   "database_schema": {
-    "summary": "Quản lý Members và quan hệ Referrals giới thiệu F1.",
+    "summary": "Hệ thống lưu: Brand/Branch (thương hiệu/chi nhánh), Member (khách hàng), Tier (hạng thẻ), Transaction (giao dịch), Referral (giới thiệu), Points (điểm thưởng), Reward/Voucher (đổi quà), Staff (nhân viên)",
     "tables": [
-      {
-        "name": "Member",
-        "description": "Thông tin thành viên từ Zalo và số dư điểm."
-      },
-      {
-        "name": "Referral",
-        "description": "Ghi nhận quan hệ giới thiệu 1:1."
-      }
-    ]
+      { "name": "brands", "description": "Thương hiệu (Zô Dứt Cạn)" },
+      { "name": "branches", "description": "Chi nhánh, có cukcuk_branch_id để mapping POS", "key_columns": ["cukcuk_branch_id", "address"] },
+      { "name": "members", "description": "Khách hàng đăng ký qua Zalo Mini App", "key_columns": ["zalo_id", "phone", "referral_code", "qr_code", "lifetime_spending", "monthly_spending", "points_balance", "referred_by"] },
+      { "name": "tiers", "description": "5 hạng: Đồng(0đ), Bạc(2M), Vàng(5M), Bạch Kim(15M), Kim Cương(50M)", "key_columns": ["min_spending", "points_multiplier", "theme_config"] },
+      { "name": "tier_histories", "description": "Lịch sử thăng hạng, reason: spending_milestone" },
+      { "name": "transactions", "description": "Giao dịch từ POS webhook hoặc nhập tay staff", "key_columns": ["pos_bill_id", "final_amount", "source", "status", "member_id"] },
+      { "name": "referrals", "description": "Quan hệ giới thiệu 1:1 (referrer → referee)", "key_columns": ["status", "total_bill_amount", "total_earned"] },
+      { "name": "referral_earnings", "description": "Chi tiết hoa hồng 5% mỗi bill", "key_columns": ["earn_amount", "points_awarded"] },
+      { "name": "point_transactions", "description": "Lịch sử cộng/trừ điểm" },
+      { "name": "rewards_catalog", "description": "Danh mục quà đổi điểm" },
+      { "name": "discount_tiers", "description": "Cấp giảm giá theo điểm" },
+      { "name": "redemptions", "description": "Lịch sử đổi quà/voucher" },
+      { "name": "staff", "description": "Nhân viên (store_manager, cashier)", "key_columns": ["phone", "role", "branch_id"] },
+      { "name": "audit_logs", "description": "Log hành động" },
+      { "name": "fraud_alerts", "description": "Cảnh báo gian lận" },
+      { "name": "system_configs", "description": "Cấu hình hệ thống per-brand" }
+    ],
+    "relationships_explained": "1 Brand có nhiều Branch. 1 Branch có nhiều Staff & Transaction. 1 Member có nhiều Transaction, PointTransaction, TierHistory, Redemption. 1 Member giới thiệu nhiều Member (referral). Mỗi Transaction có thể generate ReferralEarning cho referrer."
   },
   "api_endpoints": [
-    {
-      "path": "/auth/zalo-login",
-      "method": "POST",
-      "explained": "Login bằng token Zalo, tự động tạo member và xử lý referral."
-    },
-    {
-      "path": "/auth/me",
-      "method": "GET",
-      "explained": "Verify JWT token và trả về profile basic."
-    }
+    { "method": "POST", "path": "/auth/phone-login", "explained": "Đăng nhập bằng SĐT — tự tạo member nếu chưa có, trả JWT. Hỗ trợ cả member và staff." },
+    { "method": "GET", "path": "/auth/me", "explained": "Thông tin user hiện tại từ JWT." },
+    { "method": "GET", "path": "/api/v1/members/me/dashboard", "explained": "Dashboard: profile, tier, themeConfig, monthly stats, progress lên hạng." },
+    { "method": "GET", "path": "/api/v1/members/me/timeline", "explained": "Timeline xen kẽ bill + referral, sort mới nhất, phân trang." },
+    { "method": "POST", "path": "/api/v1/transactions/manual", "explained": "Staff nhập bill tay → pending_review." },
+    { "method": "GET", "path": "/api/v1/transactions/pending", "explained": "List bill chờ duyệt (manager only)." },
+    { "method": "GET", "path": "/api/v1/transactions/search-member", "explained": "Tìm member theo SĐT." },
+    { "method": "PATCH", "path": "/api/v1/transactions/:id/approve", "explained": "Duyệt bill → cộng spending + thăng hạng + referral 5%." },
+    { "method": "PATCH", "path": "/api/v1/transactions/:id/reject", "explained": "Từ chối bill." },
+    { "method": "POST", "path": "/api/v1/webhook/cukcuk", "explained": "Webhook POS CUKCUK → signature guard, idempotent check, auto_approved/orphan." }
   ],
-  "features": [
-    "Verify Zalo Token",
-    "Decrypt Zalo Phone Number",
-    "Auto-generate Referral/QR Codes",
-    "JWT Session Management",
-    "F1 Referral tracking"
+  "business_rules": [
+    "Hoa hồng giới thiệu: 5% giá trị bill → điểm cho referrer (1000đ = 1 điểm)",
+    "Thăng hạng: lifetime_spending check sau mỗi bill → insert tier_histories",
+    "5 hạng: Đồng(0), Bạc(2M,x1.2), Vàng(5M,x1.5), Bạch Kim(15M,x2.0), Kim Cương(50M,x3.0)",
+    "Webhook CUKCUK: auto_approved nếu có member, pending_review nếu bill mồ côi",
+    "Idempotent: trùng pos_bill_id → skip",
+    "Referral: pending → active khi bill đầu tiên được duyệt"
+  ],
+  "modules": [
+    { "name": "AuthModule", "files": ["auth/"] },
+    { "name": "MembersModule", "files": ["members/"] },
+    { "name": "TransactionsModule", "files": ["transactions/"] },
+    { "name": "ReferralsModule", "files": ["referrals/"] },
+    { "name": "WebhookModule", "files": ["webhook/"] },
+    { "name": "ZaloModule", "files": ["zalo/"] },
+    { "name": "PrismaModule", "files": ["prisma/"] }
   ],
   "knowledge_items": {
     "patterns": [
-      "Global PrismaModule",
-      "Phased Login flow (Verify -> Decrypt -> Member -> Referral -> JWT)"
+      "All DB writes in prisma.$transaction for atomicity",
+      "BigInt for money fields — Number() when serializing to JSON",
+      "Guard pattern: CukcukSignatureGuard, StaffAuthGuard, JwtAuthGuard",
+      "Promise.all for parallel queries (timeline)"
     ],
     "gotchas": [
-      "Neon connection requires pgbouncer=true in URL",
-      "Zalo phone number is prefixed with 84, need to format to 0."
+      "Seed upsert needs update clause for new fields (cukcukBranchId)",
+      "Role: DB has 'store_manager', accept both 'store_manager' and 'manager'",
+      "Prisma BigInt → JSON needs Number() conversion",
+      "Tier themeConfig is Json field → frontend needs typed interface"
     ]
+  },
+  "seed_data": {
+    "branches": ["CK-BRANCH-001 (Q1)", "CK-BRANCH-002 (Q3)"],
+    "staff": ["0912345678 (manager)", "0987654321 (cashier)"],
+    "tiers": ["Đồng", "Bạc", "Vàng", "Bạch Kim", "Kim Cương"],
+    "test_member": "0901234567"
   }
 }

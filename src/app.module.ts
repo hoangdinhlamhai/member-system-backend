@@ -7,6 +7,8 @@ import { ZaloModule } from './zalo/zalo.module';
 import { AuthModule } from './auth/auth.module';
 import { MembersModule } from './members/members.module';
 import { ReferralsModule } from './referrals/referrals.module';
+import { TransactionsModule } from './transactions/transactions.module';
+import { WebhookModule } from './webhook/webhook.module';
 
 @Module({
   imports: [
@@ -18,8 +20,11 @@ import { ReferralsModule } from './referrals/referrals.module';
     AuthModule,
     MembersModule,
     ReferralsModule,
+    TransactionsModule,
+    WebhookModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
 export class AppModule {}
+

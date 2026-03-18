@@ -1,55 +1,75 @@
 {
-  "updated_at": "2026-03-14T01:10:00Z",
+  "updated_at": "2026-03-18T01:39:00+07:00",
   "working_on": {
-    "feature": "Zalo Authentication",
-    "phase": "phase-07",
-    "task": "Testing & Mocking",
+    "feature": "Loyalty System Core",
+    "task": "CUKCUK Webhook Integration",
     "status": "completed",
-    "notes": "Mock mode enabled in .env and ZaloService"
+    "files": [
+      "src/webhook/webhook.controller.ts",
+      "src/webhook/webhook.service.ts",
+      "src/webhook/dto/cukcuk-webhook.dto.ts",
+      "src/webhook/guards/cukcuk-signature.guard.ts",
+      "src/webhook/webhook.module.ts"
+    ],
+    "blockers": [],
+    "notes": "Webhook tested with 5 scenarios: missing sig, wrong sig, valid member, duplicate, orphan"
   },
   "pending_tasks": [
-    {
-      "phase": "phase-08",
-      "task": "Final Review, Cleanup & Detailed Docs",
-      "priority": "low"
-    },
-    {
-      "task": "Integrate real Zalo App ID/Secret",
-      "priority": "high",
-      "notes": "Currently using mock data"
-    }
+    { "task": "Implement ZNS notifications (thăng hạng, hoa hồng, bill)", "priority": "high", "notes": "TODO comments đã để sẵn trong webhook.service.ts và transactions.service.ts" },
+    { "task": "Frontend: Rewards/Vouchers call API thật (đang dùng mock)", "priority": "medium", "notes": "mockRewards, mockVouchers, mockDiscountTiers vẫn còn trong member-store.ts" },
+    { "task": "Multi-branch management: Permission cho manager xem bill cross-branch", "priority": "medium", "notes": "Hiện đã bỏ branch filter tạm để test" },
+    { "task": "Production: CUKCUK signature guard nên dùng HMAC-SHA256 per-branch", "priority": "low", "notes": "MVP đang fix cứng 'secret_123'" },
+    { "task": "Monthly spending reset (cron job đầu tháng)", "priority": "medium", "notes": "monthly_spending hiện chỉ cộng, chưa có logic reset" },
+    { "task": "Frontend TierInfoCard: Verify themeConfig hiển thị đúng cho tất cả 5 hạng", "priority": "low", "notes": "Đã fix switch-case → dùng API data, nhưng chưa test hết 5 hạng" }
   ],
   "recent_changes": [
     {
-      "description": "Implemented full Zalo Auth flow (Phase 1-7)",
-      "files": [
-        "src/zalo/*",
-        "src/auth/*",
-        "src/members/*",
-        "src/referrals/*"
-      ]
-    }
-  ],
-  "decisions_made": [
-    {
-      "decision": "Use Mock Mode instead of real tokens for development",
-      "reason": "Faster debug without ZMA environment"
+      "timestamp": "2026-03-18T01:00:00+07:00",
+      "type": "feature",
+      "description": "CUKCUK Webhook endpoint - POST /api/v1/webhook/cukcuk",
+      "files": ["src/webhook/"]
     },
     {
-      "decision": "Store phone in standard 0xxxx format",
-      "reason": "Consistency with other VN systems"
+      "timestamp": "2026-03-17T23:28:00+07:00",
+      "type": "feature",
+      "description": "Timeline API - GET /api/v1/members/me/timeline + Frontend integration",
+      "files": ["src/members/members.service.ts", "src/members/members.controller.ts", "FE: transaction-timeline.tsx, member-store.ts"]
+    },
+    {
+      "timestamp": "2026-03-17T17:47:00+07:00",
+      "type": "feature",
+      "description": "Tier Promotion logic trong approveBill — check thăng hạng sau cộng spending",
+      "files": ["src/transactions/transactions.service.ts"]
+    },
+    {
+      "timestamp": "2026-03-17T17:20:00+07:00",
+      "type": "feature",
+      "description": "Dashboard API real data + Frontend integration",
+      "files": ["src/members/members.service.ts", "FE: member-store.ts, dashboard.tsx, tier-info-card.tsx"]
+    },
+    {
+      "timestamp": "2026-03-17T10:00:00+07:00",
+      "type": "feature",
+      "description": "Bill Approval flow: approve + reject + referral engine 5%",
+      "files": ["src/transactions/transactions.service.ts", "src/transactions/transactions.controller.ts"]
+    },
+    {
+      "timestamp": "2026-03-17T07:00:00+07:00",
+      "type": "data",
+      "description": "Seed 5 tiers: Đồng, Bạc, Vàng, Bạch Kim, Kim Cương",
+      "files": ["prisma/seed.ts"]
     }
   ],
   "errors_encountered": [
-    {
-      "error": "Prisma connection pooler issues",
-      "solution": "Added pgbouncer=true to DATABASE_URL",
-      "resolved": true
-    },
-    {
-      "error": "JWT signOptions expiresIn type error",
-      "solution": "Used 'as any' casting for StringValue compatibility",
-      "resolved": true
-    }
+    { "error": "Branch not found in webhook test", "solution": "cukcukBranchId was null in seed → added CK-BRANCH-001/002 and ran SQL update", "resolved": true },
+    { "error": "Tier shows MEMBER instead of Diamond for 50M spending", "solution": "Frontend had hardcoded switch-case without diamond case → rewrote to use API themeConfig", "resolved": true },
+    { "error": "Role mismatch: seed has 'store_manager', frontend mock has 'manager'", "solution": "Accept both roles in transactions.service.ts role check", "resolved": true }
+  ],
+  "decisions_made": [
+    { "decision": "Webhook luôn trả 200 OK", "reason": "POS không retry sai — tránh duplicate" },
+    { "decision": "Idempotent by posBillId", "reason": "Prevent duplicate transactions from webhook retries" },
+    { "decision": "Bill mồ côi: pending_review, member_id=null", "reason": "Staff có thể claim sau" },
+    { "decision": "Tier themeConfig từ DB, không hardcode", "reason": "Dễ thay đổi màu/icon mà không sửa code" },
+    { "decision": "Timeline: merge+sort in-memory", "reason": "Data volume nhỏ cho MVP, optimize later nếu cần" }
   ]
 }
