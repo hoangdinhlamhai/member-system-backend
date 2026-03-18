@@ -9,6 +9,7 @@ import { MembersModule } from './members/members.module';
 import { ReferralsModule } from './referrals/referrals.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { WebhookModule } from './webhook/webhook.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { WebhookModule } from './webhook/webhook.module';
     ReferralsModule,
     TransactionsModule,
     WebhookModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],
