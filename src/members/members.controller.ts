@@ -1,7 +1,8 @@
-import { Controller, Get, Query, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, UseGuards, Req } from '@nestjs/common';
 import { MembersService } from './members.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PaginationDto } from './dto/pagination.dto';
+import { RedeemDto } from './dto/redeem.dto';
 
 @Controller('api/v1/members')
 export class MembersController {
@@ -9,7 +10,6 @@ export class MembersController {
 
   /**
    * GET /api/v1/members/me/dashboard
-   * Trả về toàn bộ thông tin dashboard cho member đang login
    */
   @Get('me/dashboard')
   @UseGuards(JwtAuthGuard)
@@ -19,18 +19,7 @@ export class MembersController {
   }
 
   /**
-   * GET /api/v1/members/me/timeline?page=1&limit=20
-   * Trả về timeline xen kẽ: bill cá nhân + referral earnings
-   * Sorted theo date giảm dần (mới nhất lên trước)
-   *
-   * Response format:
-   * {
-   *   data: [
-   *     { type: 'personal_bill', id, title, amount, date },
-   *     { type: 'referral_bonus', id, title, points, date },
-   *   ],
-   *   meta: { page, limit, total, totalPages }
-   * }
+   * GET /api/v1/members/me/timeline
    */
   @Get('me/timeline')
   @UseGuards(JwtAuthGuard)
@@ -45,4 +34,41 @@ export class MembersController {
       query.limit ?? 20,
     );
   }
+
+  /**
+   * GET /api/v1/members/rewards — Danh sách quà đổi điểm (public, ko cần auth)
+   */
+  @Get('rewards')
+  async getRewardsCatalog() {
+    return this.membersService.getRewardsCatalog();
+  }
+
+  /**
+   * GET /api/v1/members/discount-tiers — Các mức giảm giá bill (public)
+   */
+  @Get('discount-tiers')
+  async getDiscountTiers() {
+    return this.membersService.getDiscountTiers();
+  }
+
+  /**
+   * GET /api/v1/members/me/vouchers — Voucher đã đổi của member (auth required)
+   */
+  @Get('me/vouchers')
+  @UseGuards(JwtAuthGuard)
+  async getMyVouchers(@Req() req: any) {
+    const memberId = req.user.id;
+    return this.membersService.getMyVouchers(memberId);
+  }
+
+  /**
+   * POST /api/v1/members/me/redeem — Đổi quà hoặc giảm giá bằng điểm
+   */
+  @Post('me/redeem')
+  @UseGuards(JwtAuthGuard)
+  async redeemItem(@Req() req: any, @Body() dto: RedeemDto) {
+    const memberId = req.user.id;
+    return this.membersService.redeemItem(memberId, dto.type, dto.itemId);
+  }
 }
+

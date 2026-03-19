@@ -6,6 +6,9 @@ import { MembersService } from '../members/members.service';
 import { ReferralsService } from '../referrals/referrals.service';
 import { ZaloLoginDto } from './dto/zalo-login.dto';
 import { PhoneLoginDto } from './dto/phone-login.dto';
+import { AdminLoginDto } from './dto/admin-login.dto';
+import * as bcrypt from 'bcryptjs';
+
 
 @Injectable()
 export class AuthService {
@@ -171,4 +174,54 @@ export class AuthService {
     }
   }
   */
+
+  async adminLogin(dto: AdminLoginDto) {
+    const phone = this.normalizePhone(dto.phone);
+
+    const staff = await this.prisma.staff.findUnique({
+      where: { phone },
+      include: { branch: true },
+    });
+
+    if (!staff) {
+      throw new UnauthorizedException('Số điện thoại hoặc mật khẩu không đúng.');
+    }
+
+    if (!staff.isActive) {
+      throw new UnauthorizedException('Tài khoản đã bị vô hiệu hóa.');
+    }
+
+    if (!['admin', 'store_manager'].includes(staff.role)) {
+      throw new UnauthorizedException('Tài khoản không có quyền truy cập Admin.');
+    }
+
+    if (!staff.passwordHash) {
+      throw new UnauthorizedException('Tài khoản chưa được thiết lập mật khẩu.');
+    }
+
+    const isMatch = await bcrypt.compare(dto.password, staff.passwordHash);
+    if (!isMatch) {
+      throw new UnauthorizedException('Số điện thoại hoặc mật khẩu không đúng.');
+    }
+
+    const accessToken = this.jwtService.sign({
+      sub: staff.id,
+      phone: staff.phone,
+      role: staff.role,
+      type: 'staff',
+    });
+
+    this.logger.log(`Admin login: ${staff.fullName} (${staff.role})`);
+
+    return {
+      accessToken,
+      staff: {
+        id: staff.id,
+        phone: staff.phone,
+        fullName: staff.fullName,
+        role: staff.role,
+        branchId: staff.branchId,
+      },
+    };
+  }
 }

@@ -1,75 +1,79 @@
 {
-  "updated_at": "2026-03-18T01:39:00+07:00",
+  "updated_at": "2026-03-19T01:38:00+07:00",
   "working_on": {
-    "feature": "Loyalty System Core",
-    "task": "CUKCUK Webhook Integration",
+    "feature": "Admin Dashboard + ZMA API Integration",
+    "task": "ZMA rewards/discount-tiers fetch real API (thay mock data)",
     "status": "completed",
     "files": [
-      "src/webhook/webhook.controller.ts",
-      "src/webhook/webhook.service.ts",
-      "src/webhook/dto/cukcuk-webhook.dto.ts",
-      "src/webhook/guards/cukcuk-signature.guard.ts",
-      "src/webhook/webhook.module.ts"
+      "src/admin/",
+      "src/members/members.controller.ts",
+      "src/members/members.service.ts",
+      "ZMA: stores/member-store.ts, hooks/use-member.ts, pages/rewards.tsx"
     ],
     "blockers": [],
-    "notes": "Webhook tested with 5 scenarios: missing sig, wrong sig, valid member, duplicate, orphan"
+    "notes": "Admin module hoàn chỉnh, ZMA đã chuyển từ mock sang real API cho rewards/discount-tiers/vouchers"
   },
   "pending_tasks": [
-    { "task": "Implement ZNS notifications (thăng hạng, hoa hồng, bill)", "priority": "high", "notes": "TODO comments đã để sẵn trong webhook.service.ts và transactions.service.ts" },
-    { "task": "Frontend: Rewards/Vouchers call API thật (đang dùng mock)", "priority": "medium", "notes": "mockRewards, mockVouchers, mockDiscountTiers vẫn còn trong member-store.ts" },
-    { "task": "Multi-branch management: Permission cho manager xem bill cross-branch", "priority": "medium", "notes": "Hiện đã bỏ branch filter tạm để test" },
+    { "task": "Implement ZNS notifications (thăng hạng, hoa hồng, bill)", "priority": "high", "notes": "TODO comments đã để sẵn trong webhook.service.ts và transactions.service.ts. Cần tài khoản Zalo OA." },
+    { "task": "POST /api/v1/members/me/redeem — API đổi quà/discount tạo Redemption thật", "priority": "high", "notes": "ZMA redeemItemAtom hiện trừ điểm local, cần gọi backend tạo Redemption + voucher_code" },
+    { "task": "Admin: Thêm quà vào rewards_catalog từ trang /rewards (DB đang trống)", "priority": "medium", "notes": "GET /api/v1/members/rewards trả [] vì chưa có data" },
+    { "task": "Admin: Fraud page + Webhook page", "priority": "medium", "notes": "2 trang admin chưa implement" },
+    { "task": "Admin: Edit functionality cho Rewards, Discount Tiers", "priority": "medium", "notes": "Hiện chỉ có Add/Delete, chưa có Edit form" },
+    { "task": "Multi-branch management: Permission cho manager xem bill cross-branch", "priority": "medium", "notes": "" },
     { "task": "Production: CUKCUK signature guard nên dùng HMAC-SHA256 per-branch", "priority": "low", "notes": "MVP đang fix cứng 'secret_123'" },
-    { "task": "Monthly spending reset (cron job đầu tháng)", "priority": "medium", "notes": "monthly_spending hiện chỉ cộng, chưa có logic reset" },
-    { "task": "Frontend TierInfoCard: Verify themeConfig hiển thị đúng cho tất cả 5 hạng", "priority": "low", "notes": "Đã fix switch-case → dùng API data, nhưng chưa test hết 5 hạng" }
+    { "task": "Monthly spending reset (cron job đầu tháng)", "priority": "medium", "notes": "monthly_spending hiện chỉ cộng, chưa có logic reset" }
   ],
   "recent_changes": [
+    {
+      "timestamp": "2026-03-19T01:35:00+07:00",
+      "type": "feature",
+      "description": "ZMA: Thay mock data bằng API thật cho rewards, discount-tiers, vouchers",
+      "files": ["src/members/members.controller.ts", "src/members/members.service.ts", "ZMA: stores/member-store.ts, hooks/use-member.ts, pages/rewards.tsx"]
+    },
+    {
+      "timestamp": "2026-03-19T00:15:00+07:00",
+      "type": "feature",
+      "description": "Admin CRUD Members — Create (auto referralCode + referrer link + default tier), Update (phone dup check), Delete (transaction protection + cascade)",
+      "files": ["src/admin/dto/member.dto.ts", "src/admin/services/admin-members.service.ts", "src/admin/controllers/admin-members.controller.ts"]
+    },
+    {
+      "timestamp": "2026-03-19T00:15:00+07:00",
+      "type": "feature",
+      "description": "Web Admin: Members list (API call), detail page (stats, referrals, tiers, point history, transactions), edit dialog, adjust points dialog, delete with confirm",
+      "files": ["NextJS: lib/api.ts, lib/member-actions.ts, app/members/page.tsx, app/members/[id]/page.tsx, components/clickable-row.tsx"]
+    },
+    {
+      "timestamp": "2026-03-18T22:00:00+07:00",
+      "type": "feature",
+      "description": "Admin Module: CRUD cho Tiers, Rewards, DiscountTiers, SystemConfigs + Web Admin dashboard với CRUD UI",
+      "files": ["src/admin/", "NextJS: app/**"]
+    },
+    {
+      "timestamp": "2026-03-18T20:50:00+07:00",
+      "type": "bugfix",
+      "description": "Fixed JwtStrategy crash — JWT_SECRET missing in .env",
+      "files": [".env"]
+    },
     {
       "timestamp": "2026-03-18T01:00:00+07:00",
       "type": "feature",
       "description": "CUKCUK Webhook endpoint - POST /api/v1/webhook/cukcuk",
       "files": ["src/webhook/"]
-    },
-    {
-      "timestamp": "2026-03-17T23:28:00+07:00",
-      "type": "feature",
-      "description": "Timeline API - GET /api/v1/members/me/timeline + Frontend integration",
-      "files": ["src/members/members.service.ts", "src/members/members.controller.ts", "FE: transaction-timeline.tsx, member-store.ts"]
-    },
-    {
-      "timestamp": "2026-03-17T17:47:00+07:00",
-      "type": "feature",
-      "description": "Tier Promotion logic trong approveBill — check thăng hạng sau cộng spending",
-      "files": ["src/transactions/transactions.service.ts"]
-    },
-    {
-      "timestamp": "2026-03-17T17:20:00+07:00",
-      "type": "feature",
-      "description": "Dashboard API real data + Frontend integration",
-      "files": ["src/members/members.service.ts", "FE: member-store.ts, dashboard.tsx, tier-info-card.tsx"]
-    },
-    {
-      "timestamp": "2026-03-17T10:00:00+07:00",
-      "type": "feature",
-      "description": "Bill Approval flow: approve + reject + referral engine 5%",
-      "files": ["src/transactions/transactions.service.ts", "src/transactions/transactions.controller.ts"]
-    },
-    {
-      "timestamp": "2026-03-17T07:00:00+07:00",
-      "type": "data",
-      "description": "Seed 5 tiers: Đồng, Bạc, Vàng, Bạch Kim, Kim Cương",
-      "files": ["prisma/seed.ts"]
     }
   ],
   "errors_encountered": [
-    { "error": "Branch not found in webhook test", "solution": "cukcukBranchId was null in seed → added CK-BRANCH-001/002 and ran SQL update", "resolved": true },
-    { "error": "Tier shows MEMBER instead of Diamond for 50M spending", "solution": "Frontend had hardcoded switch-case without diamond case → rewrote to use API themeConfig", "resolved": true },
-    { "error": "Role mismatch: seed has 'store_manager', frontend mock has 'manager'", "solution": "Accept both roles in transactions.service.ts role check", "resolved": true }
+    { "error": "JwtStrategy requires a secret or key", "solution": "JWT_SECRET was missing in .env, added JWT_SECRET=zodutcan-secret-key-2026", "resolved": true },
+    { "error": "EADDRINUSE port 3003", "solution": "Kill conflicting process before restarting NestJS", "resolved": true },
+    { "error": "Event handlers cannot be passed to Client Component props (onClick on <tr>)", "solution": "Created ClickableRow client component wrapper instead of onClick on server-rendered <tr>", "resolved": true },
+    { "error": "Prisma MemberCreateInput missing source field", "solution": "Removed source from admin member create — field doesn't exist in schema", "resolved": true },
+    { "error": "MemberDetail interface incorrectly extends MemberListItem (tierHistories mismatch)", "solution": "Made MemberDetail standalone interface instead of extending MemberListItem", "resolved": true }
   ],
   "decisions_made": [
-    { "decision": "Webhook luôn trả 200 OK", "reason": "POS không retry sai — tránh duplicate" },
-    { "decision": "Idempotent by posBillId", "reason": "Prevent duplicate transactions from webhook retries" },
-    { "decision": "Bill mồ côi: pending_review, member_id=null", "reason": "Staff có thể claim sau" },
-    { "decision": "Tier themeConfig từ DB, không hardcode", "reason": "Dễ thay đổi màu/icon mà không sửa code" },
-    { "decision": "Timeline: merge+sort in-memory", "reason": "Data volume nhỏ cho MVP, optimize later nếu cần" }
+    { "decision": "Admin APIs in separate src/admin/ folder", "reason": "Tách biệt admin logic khỏi customer-facing API" },
+    { "decision": "Web Admin gọi backend API (lib/api.ts) thay vì direct Prisma cho Members", "reason": "Centralize business logic ở backend, frontend chỉ hiển thị" },
+    { "decision": "ClickableRow client component cho table row navigation", "reason": "Next.js Server Components không cho pass onClick, cần client wrapper" },
+    { "decision": "Rewards/Discount APIs public (no auth)", "reason": "ZMA cần hiển thị catalog trước khi member login" },
+    { "decision": "Vouchers API auth-required", "reason": "Voucher là data riêng của member" },
+    { "decision": "Admin delete member chặn nếu có transactions", "reason": "Bảo toàn data integrity, member có giao dịch không được xóa" }
   ]
 }

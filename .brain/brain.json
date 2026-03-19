@@ -2,59 +2,76 @@
   "meta": {
     "schema_version": "1.1.0",
     "awf_version": "4.0.2",
-    "last_updated": "2026-03-18T01:39:00+07:00"
+    "last_updated": "2026-03-19T01:38:00+07:00"
   },
   "project": {
     "name": "Zô Dứt Cạn - Backend",
     "type": "backend_api",
     "status": "in_development",
-    "description": "Hệ thống Loyalty/CRM cho chuỗi F&B 'Zô Dứt Cạn', quản lý thành viên, tích điểm, thăng hạng, giới thiệu bạn bè (referral), và kết nối POS CUKCUK"
+    "description": "Hệ thống Loyalty/CRM cho chuỗi F&B 'Zô Dứt Cạn', quản lý thành viên, tích điểm, thăng hạng, giới thiệu bạn bè (referral), và kết nối POS CUKCUK",
+    "related_projects": {
+      "web_admin": "d:\\senlyzer\\NextJS\\member-system-zodutcan-web-admin (port 3001)",
+      "zalo_mini_app": "d:\\senlyzer\\Zalo-Mini-App\\member-system-zo-dut-can-zma"
+    }
   },
   "tech_stack": {
     "runtime": "Node.js",
     "framework": "NestJS v11",
     "language": "TypeScript 5.7",
     "orm": "Prisma 6.19",
-    "database": "PostgreSQL",
+    "database": "PostgreSQL (Neon serverless)",
     "auth": "Passport + JWT (@nestjs/jwt, passport-jwt)",
     "validation": "class-validator + class-transformer",
     "http_client": "axios",
     "id_generator": "nanoid (referral codes, QR codes)",
-    "port": 3003
+    "port": 3003,
+    "env_vars": ["DATABASE_URL", "JWT_SECRET", "PORT"]
   },
   "database_schema": {
     "summary": "Hệ thống lưu: Brand/Branch (thương hiệu/chi nhánh), Member (khách hàng), Tier (hạng thẻ), Transaction (giao dịch), Referral (giới thiệu), Points (điểm thưởng), Reward/Voucher (đổi quà), Staff (nhân viên)",
     "tables": [
       { "name": "brands", "description": "Thương hiệu (Zô Dứt Cạn)" },
       { "name": "branches", "description": "Chi nhánh, có cukcuk_branch_id để mapping POS", "key_columns": ["cukcuk_branch_id", "address"] },
-      { "name": "members", "description": "Khách hàng đăng ký qua Zalo Mini App", "key_columns": ["zalo_id", "phone", "referral_code", "qr_code", "lifetime_spending", "monthly_spending", "points_balance", "referred_by"] },
+      { "name": "members", "description": "Khách hàng đăng ký qua Zalo Mini App hoặc admin tạo tay", "key_columns": ["zalo_id", "phone", "referral_code", "qr_code", "lifetime_spending", "monthly_spending", "points_balance", "referred_by"] },
       { "name": "tiers", "description": "5 hạng: Đồng(0đ), Bạc(2M), Vàng(5M), Bạch Kim(15M), Kim Cương(50M)", "key_columns": ["min_spending", "points_multiplier", "theme_config"] },
       { "name": "tier_histories", "description": "Lịch sử thăng hạng, reason: spending_milestone" },
       { "name": "transactions", "description": "Giao dịch từ POS webhook hoặc nhập tay staff", "key_columns": ["pos_bill_id", "final_amount", "source", "status", "member_id"] },
       { "name": "referrals", "description": "Quan hệ giới thiệu 1:1 (referrer → referee)", "key_columns": ["status", "total_bill_amount", "total_earned"] },
       { "name": "referral_earnings", "description": "Chi tiết hoa hồng 5% mỗi bill", "key_columns": ["earn_amount", "points_awarded"] },
-      { "name": "point_transactions", "description": "Lịch sử cộng/trừ điểm" },
-      { "name": "rewards_catalog", "description": "Danh mục quà đổi điểm" },
-      { "name": "discount_tiers", "description": "Cấp giảm giá theo điểm" },
-      { "name": "redemptions", "description": "Lịch sử đổi quà/voucher" },
+      { "name": "point_transactions", "description": "Lịch sử cộng/trừ điểm (earn, spend, admin_add, admin_deduct)" },
+      { "name": "rewards_catalog", "description": "Danh mục quà đổi điểm (drink, food, voucher, gift)" },
+      { "name": "discount_tiers", "description": "Cấp giảm giá bill theo điểm (5%, 10%...)" },
+      { "name": "redemptions", "description": "Lịch sử đổi quà/voucher, có voucher_code + expires_at" },
       { "name": "staff", "description": "Nhân viên (store_manager, cashier)", "key_columns": ["phone", "role", "branch_id"] },
       { "name": "audit_logs", "description": "Log hành động" },
       { "name": "fraud_alerts", "description": "Cảnh báo gian lận" },
-      { "name": "system_configs", "description": "Cấu hình hệ thống per-brand" }
+      { "name": "system_configs", "description": "Cấu hình hệ thống per-brand (referral_earn_percent, point_rate...)" }
     ],
-    "relationships_explained": "1 Brand có nhiều Branch. 1 Branch có nhiều Staff & Transaction. 1 Member có nhiều Transaction, PointTransaction, TierHistory, Redemption. 1 Member giới thiệu nhiều Member (referral). Mỗi Transaction có thể generate ReferralEarning cho referrer."
+    "relationships_explained": "1 Brand có nhiều Branch. 1 Branch có nhiều Staff & Transaction. 1 Member có nhiều Transaction, PointTransaction, TierHistory, Redemption. 1 Member giới thiệu nhiều Member (referral). Mỗi Transaction có thể generate ReferralEarning cho referrer. RewardCatalog → Redemption (đổi quà). DiscountTier → Redemption (giảm giá)."
   },
   "api_endpoints": [
-    { "method": "POST", "path": "/auth/phone-login", "explained": "Đăng nhập bằng SĐT — tự tạo member nếu chưa có, trả JWT. Hỗ trợ cả member và staff." },
-    { "method": "GET", "path": "/auth/me", "explained": "Thông tin user hiện tại từ JWT." },
-    { "method": "GET", "path": "/api/v1/members/me/dashboard", "explained": "Dashboard: profile, tier, themeConfig, monthly stats, progress lên hạng." },
-    { "method": "GET", "path": "/api/v1/members/me/timeline", "explained": "Timeline xen kẽ bill + referral, sort mới nhất, phân trang." },
-    { "method": "POST", "path": "/api/v1/transactions/manual", "explained": "Staff nhập bill tay → pending_review." },
-    { "method": "GET", "path": "/api/v1/transactions/pending", "explained": "List bill chờ duyệt (manager only)." },
-    { "method": "GET", "path": "/api/v1/transactions/search-member", "explained": "Tìm member theo SĐT." },
-    { "method": "PATCH", "path": "/api/v1/transactions/:id/approve", "explained": "Duyệt bill → cộng spending + thăng hạng + referral 5%." },
-    { "method": "PATCH", "path": "/api/v1/transactions/:id/reject", "explained": "Từ chối bill." },
-    { "method": "POST", "path": "/api/v1/webhook/cukcuk", "explained": "Webhook POS CUKCUK → signature guard, idempotent check, auto_approved/orphan." }
+    { "group": "Auth", "method": "POST", "path": "/auth/phone-login", "explained": "Đăng nhập bằng SĐT — tự tạo member nếu chưa có, trả JWT." },
+    { "group": "Auth", "method": "GET", "path": "/auth/me", "explained": "Thông tin user hiện tại từ JWT." },
+    { "group": "Members (ZMA)", "method": "GET", "path": "/api/v1/members/me/dashboard", "explained": "Dashboard: profile, tier, themeConfig, monthly stats." },
+    { "group": "Members (ZMA)", "method": "GET", "path": "/api/v1/members/me/timeline", "explained": "Timeline xen kẽ bill + referral earnings." },
+    { "group": "Members (ZMA)", "method": "GET", "path": "/api/v1/members/rewards", "explained": "Danh sách quà đổi điểm (public, ko cần auth)." },
+    { "group": "Members (ZMA)", "method": "GET", "path": "/api/v1/members/discount-tiers", "explained": "Các mức giảm giá bill bằng điểm (public)." },
+    { "group": "Members (ZMA)", "method": "GET", "path": "/api/v1/members/me/vouchers", "explained": "Voucher đã đổi của member (auth)." },
+    { "group": "Transactions", "method": "POST", "path": "/api/v1/transactions/manual", "explained": "Staff nhập bill tay → pending_review." },
+    { "group": "Transactions", "method": "GET", "path": "/api/v1/transactions/pending", "explained": "List bill chờ duyệt." },
+    { "group": "Transactions", "method": "PATCH", "path": "/api/v1/transactions/:id/approve", "explained": "Duyệt bill → cộng spending + thăng hạng + referral 5%." },
+    { "group": "Transactions", "method": "PATCH", "path": "/api/v1/transactions/:id/reject", "explained": "Từ chối bill." },
+    { "group": "Webhook", "method": "POST", "path": "/api/v1/webhook/cukcuk", "explained": "Webhook POS CUKCUK → signature guard, idempotent, auto_approved." },
+    { "group": "Admin - Members", "method": "GET", "path": "/api/v1/admin/members", "explained": "Danh sách thành viên + search + pagination." },
+    { "group": "Admin - Members", "method": "GET", "path": "/api/v1/admin/members/:id", "explained": "Chi tiết thành viên (kèm referrals, tiers, transactions, point history)." },
+    { "group": "Admin - Members", "method": "POST", "path": "/api/v1/admin/members", "explained": "Tạo thành viên mới (auto referralCode, link referrer, assign default tier)." },
+    { "group": "Admin - Members", "method": "PATCH", "path": "/api/v1/admin/members/:id", "explained": "Sửa thông tin (phone, name — check dup phone)." },
+    { "group": "Admin - Members", "method": "DELETE", "path": "/api/v1/admin/members/:id", "explained": "Xóa thành viên (chặn nếu có giao dịch, cascade related data)." },
+    { "group": "Admin - Members", "method": "PATCH", "path": "/api/v1/admin/members/:id/adjust-points", "explained": "Cộng/trừ điểm (admin_add/admin_deduct) + tạo point_transaction." },
+    { "group": "Admin - Members", "method": "GET", "path": "/api/v1/admin/members/stats/overview", "explained": "Thống kê: tổng TV, mới tháng, giao dịch, doanh thu, pending bills, active referrals." },
+    { "group": "Admin - Tiers", "method": "GET/POST/PATCH/DELETE", "path": "/api/v1/admin/tiers", "explained": "CRUD hạng thẻ." },
+    { "group": "Admin - Rewards", "method": "GET/POST/DELETE", "path": "/api/v1/admin/rewards", "explained": "CRUD rewards catalog + discount tiers." },
+    { "group": "Admin - Configs", "method": "GET/POST/PATCH/DELETE", "path": "/api/v1/admin/configs", "explained": "CRUD system configs + branches list." }
   ],
   "business_rules": [
     "Hoa hồng giới thiệu: 5% giá trị bill → điểm cho referrer (1000đ = 1 điểm)",
@@ -62,29 +79,42 @@
     "5 hạng: Đồng(0), Bạc(2M,x1.2), Vàng(5M,x1.5), Bạch Kim(15M,x2.0), Kim Cương(50M,x3.0)",
     "Webhook CUKCUK: auto_approved nếu có member, pending_review nếu bill mồ côi",
     "Idempotent: trùng pos_bill_id → skip",
-    "Referral: pending → active khi bill đầu tiên được duyệt"
+    "Referral: pending → active khi bill đầu tiên được duyệt",
+    "Admin tạo member: auto-gen referralCode ZDC-XXXXXX + assign tier thấp nhất",
+    "Admin xóa member: chặn nếu đã có giao dịch, cascade cleanup related data",
+    "Rewards đổi bằng điểm: kiểm tra pointsBalance >= pointsRequired",
+    "Discount tiers: quy đổi điểm → % giảm giá bill (maxDiscountAmount cap)"
   ],
   "modules": [
     { "name": "AuthModule", "files": ["auth/"] },
-    { "name": "MembersModule", "files": ["members/"] },
+    { "name": "MembersModule", "files": ["members/"], "notes": "Public API cho ZMA + rewards/discount-tiers/vouchers" },
     { "name": "TransactionsModule", "files": ["transactions/"] },
     { "name": "ReferralsModule", "files": ["referrals/"] },
     { "name": "WebhookModule", "files": ["webhook/"] },
     { "name": "ZaloModule", "files": ["zalo/"] },
-    { "name": "PrismaModule", "files": ["prisma/"] }
+    { "name": "PrismaModule", "files": ["prisma/"] },
+    { "name": "AdminModule", "files": ["admin/"], "notes": "Tất cả admin endpoints: members, tiers, rewards, configs. Folder riêng src/admin/" }
   ],
   "knowledge_items": {
     "patterns": [
       "All DB writes in prisma.$transaction for atomicity",
       "BigInt for money fields — Number() when serializing to JSON",
       "Guard pattern: CukcukSignatureGuard, StaffAuthGuard, JwtAuthGuard",
-      "Promise.all for parallel queries (timeline)"
+      "Promise.all for parallel queries (timeline)",
+      "Admin APIs separated in src/admin/ folder (controllers, services, dto)",
+      "Frontend calls backend API via lib/api.ts fetch client (Next.js web admin)",
+      "ZMA calls backend via axios api service + Jotai atoms for state management"
     ],
     "gotchas": [
+      "JwtStrategy requires JWT_SECRET in .env — empty string '' causes crash",
+      "Backend port 3003 (not default 3000) — set in .env PORT=3003",
       "Seed upsert needs update clause for new fields (cukcukBranchId)",
       "Role: DB has 'store_manager', accept both 'store_manager' and 'manager'",
       "Prisma BigInt → JSON needs Number() conversion",
-      "Tier themeConfig is Json field → frontend needs typed interface"
+      "Tier themeConfig is Json field → frontend needs typed interface",
+      "Member create requires zaloId + qrCode (unique) — admin uses admin_{phone} and placeholder",
+      "Server Component cannot use onClick — use Client Component wrapper (ClickableRow pattern)",
+      "Next.js NEXT_PUBLIC_API_URL needed in .env for client-side API calls"
     ]
   },
   "seed_data": {
