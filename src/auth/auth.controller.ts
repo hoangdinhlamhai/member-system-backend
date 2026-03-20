@@ -10,18 +10,16 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   /**
-   * @deprecated Tạm thời khóa luồng này vì chưa có Zalo OA
-   * Endpoint chính cho Zalo Mini App Login
+   * Endpoint chính cho Zalo Mini App OAuth Login
+   * Flow: ZMA authorize → getAccessToken → getPhoneNumber → POST here
    */
-  /*
   @Post('zalo-login')
-  async login(@Body() loginDto: ZaloLoginDto) {
+  async zaloLogin(@Body() loginDto: ZaloLoginDto) {
     return this.authService.zaloLogin(loginDto);
   }
-  */
 
   /**
-   * Endpoint cho đăng nhập bằng SĐT (khi không có Zalo OA)
+   * Endpoint cho đăng nhập bằng SĐT (fallback khi không dùng Zalo OAuth)
    */
   @Post('phone-login')
   async phoneLogin(@Body() loginDto: PhoneLoginDto) {
@@ -35,7 +33,6 @@ export class AuthController {
   async adminLogin(@Body() loginDto: AdminLoginDto) {
     return this.authService.adminLogin(loginDto);
   }
-
 
   /**
    * Lấy thông tin member hiện tại từ Token

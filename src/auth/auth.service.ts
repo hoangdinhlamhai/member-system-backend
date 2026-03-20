@@ -37,6 +37,126 @@ export class AuthService {
   }
 
   /**
+   * Zalo OAuth Login Flow (chính thức cho ZMA):
+   * 1. Verify zalo access token → lấy zaloId, name, avatar
+   * 2. Decrypt phone token → lấy SĐT thật
+   * 3. Tìm member theo zaloId → nếu có thì update info
+   * 4. Nếu không có → tìm theo phone → nếu có thì link zaloId (merge data)
+   * 5. Nếu chưa có member nào → tạo mới
+   * 6. Xử lý referral nếu new user
+   * 7. Tạo JWT
+   */
+  async zaloLogin(dto: ZaloLoginDto) {
+    try {
+      // Step 1: Verify access token → lấy Zalo profile
+      const zaloUser = await this.zaloService.verifyAccessToken(dto.accessToken);
+      this.logger.log(`Zalo user verified: ${zaloUser.zaloName} (${zaloUser.zaloId})`);
+
+      // Step 2: Decrypt phone token → lấy SĐT
+      const { phone } = await this.zaloService.decryptPhoneNumber(
+        dto.phoneToken,
+        dto.accessToken,
+      );
+      const normalizedPhone = this.normalizePhone(phone);
+      this.logger.log(`Zalo phone decrypted: ${normalizedPhone}`);
+
+      // Step 3: Tìm member theo zaloId
+      let member = await this.membersService.findByZaloId(zaloUser.zaloId);
+      let isNewUser = false;
+
+      if (member) {
+        // Member đã tồn tại với zaloId → cập nhật info mới nhất
+        member = await this.membersService.updateMemberInfo(member.id, {
+          zaloName: zaloUser.zaloName,
+          zaloAvatar: zaloUser.zaloAvatar,
+          phone: normalizedPhone,
+          lastActiveAt: new Date(),
+        });
+        this.logger.log(`Existing Zalo member updated: ${member.id}`);
+      } else {
+        // Step 4: Tìm theo phone (member có thể đã tạo qua phone-login)
+        const existingByPhone = await this.prisma.member.findFirst({
+          where: { phone: normalizedPhone },
+        });
+
+        if (existingByPhone) {
+          // Member đã có qua phone-login → link zaloId vào (merge)
+          // Check KHÔNG cho phép link nếu zaloId đã thuộc member khác
+          if (existingByPhone.zaloId && 
+              existingByPhone.zaloId !== zaloUser.zaloId && 
+              !existingByPhone.zaloId.startsWith('phone_')) {
+            throw new UnauthorizedException('PHONE_ALREADY_LINKED_TO_OTHER_ZALO_ID');
+          }
+
+          member = await this.membersService.updateMemberInfo(existingByPhone.id, {
+            zaloName: zaloUser.zaloName,
+            zaloAvatar: zaloUser.zaloAvatar,
+            lastActiveAt: new Date(),
+          });
+
+          // Update zaloId trực tiếp (không qua updateMemberInfo vì field đó không trong interface)
+          await this.prisma.member.update({
+            where: { id: existingByPhone.id },
+            data: { zaloId: zaloUser.zaloId },
+          });
+
+          member = await this.membersService.findById(existingByPhone.id);
+          if (!member) {
+            throw new UnauthorizedException('MEMBER_NOT_FOUND_AFTER_MERGE');
+          }
+
+          this.logger.log(`Phone member merged with Zalo: ${member.id} (${normalizedPhone})`);
+        } else {
+          // Step 5: Hoàn toàn mới → tạo member
+          member = await this.membersService.createMember({
+            zaloId: zaloUser.zaloId,
+            zaloName: zaloUser.zaloName,
+            zaloAvatar: zaloUser.zaloAvatar,
+            phone: normalizedPhone,
+          });
+          isNewUser = true;
+
+          // Step 6: Xử lý referral nếu có
+          if (dto.refCode) {
+            await this.referralsService.processReferral(dto.refCode, member.id);
+          }
+
+          this.logger.log(`New Zalo member created: ${member.id}`);
+        }
+      }
+
+      // Step 7: Tạo JWT — member is guaranteed non-null at this point
+      if (!member) {
+        throw new UnauthorizedException('MEMBER_CREATION_FAILED');
+      }
+
+      const accessToken = this.jwtService.sign({
+        sub: member.id,
+        zaloId: member.zaloId,
+        phone: member.phone,
+        type: 'member',
+      });
+
+      return {
+        accessToken,
+        userType: 'member',
+        member: {
+          id: member.id,
+          zaloId: member.zaloId,
+          zaloName: member.zaloName,
+          zaloAvatar: member.zaloAvatar,
+          phone: member.phone,
+          points: member.pointsBalance ?? 0,
+        },
+        isNewUser,
+      };
+    } catch (error) {
+      this.logger.error(`Zalo login failed: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
    * Flow xử lý đăng nhập bằng SĐT:
    * 1. Check cả bảng staff và members
    * 2. Nếu có ở staff → trả về staff info + role → FE redirect Staff UI
@@ -121,59 +241,6 @@ export class AuthService {
       throw error;
     }
   }
-
-  /**
-   * @deprecated Tạm thời khóa luồng này vì chưa có Zalo OA
-   * Flow xử lý đăng nhập Zalo
-   */
-  /*
-  async zaloLogin(dto: ZaloLoginDto) {
-    try {
-      const zaloUser = await this.zaloService.verifyAccessToken(dto.accessToken);
-      const { phone } = await this.zaloService.decryptPhoneNumber(dto.phoneToken, dto.accessToken);
-
-      let member = await this.membersService.findByZaloId(zaloUser.zaloId);
-      let isNewUser = false;
-
-      if (!member) {
-        const existingPhone = await this.membersService.findByPhone(phone);
-        if (existingPhone) {
-          throw new UnauthorizedException('PHONE_ALREADY_LINKED_TO_OTHER_ZALO_ID');
-        }
-
-        member = await this.membersService.createMember({
-          zaloId: zaloUser.zaloId,
-          zaloName: zaloUser.zaloName,
-          zaloAvatar: zaloUser.zaloAvatar,
-          phone: phone,
-        });
-        isNewUser = true;
-
-        if (dto.refCode) {
-          await this.referralsService.processReferral(dto.refCode, member.id);
-        }
-      } else {
-        member = await this.membersService.updateMemberInfo(member.id, {
-          zaloName: zaloUser.zaloName,
-          zaloAvatar: zaloUser.zaloAvatar,
-          phone: phone,
-          lastActiveAt: new Date(),
-        });
-      }
-
-      const accessToken = this.jwtService.sign({ sub: member.id, zaloId: member.zaloId });
-
-      return {
-        accessToken,
-        member,
-        isNewUser,
-      };
-    } catch (error) {
-      this.logger.error(`Login failed: ${error.message}`);
-      throw error;
-    }
-  }
-  */
 
   async adminLogin(dto: AdminLoginDto) {
     const phone = this.normalizePhone(dto.phone);

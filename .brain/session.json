@@ -1,72 +1,69 @@
 {
-  "updated_at": "2026-03-19T01:38:00+07:00",
+  "updated_at": "2026-03-20T01:35:00+07:00",
   "working_on": {
-    "feature": "Admin Dashboard + ZMA API Integration",
-    "task": "ZMA rewards/discount-tiers fetch real API (thay mock data)",
+    "feature": "Redeem API + Admin Login + Web Admin Auth",
+    "task": "All completed — next: test login page, then ZNS notifications",
     "status": "completed",
     "files": [
-      "src/admin/",
-      "src/members/members.controller.ts",
-      "src/members/members.service.ts",
-      "ZMA: stores/member-store.ts, hooks/use-member.ts, pages/rewards.tsx"
+      "BE: src/auth/auth.service.ts, auth.controller.ts, dto/admin-login.dto.ts",
+      "BE: src/members/dto/redeem.dto.ts, members.service.ts, members.controller.ts",
+      "BE: prisma/seed.ts",
+      "WA: app/login/page.tsx, app/layout.tsx, components/conditional-layout.tsx, app/globals.css",
+      "ZMA: stores/member-store.ts, components/rewards/redeem-modal.tsx, css/app.scss"
     ],
     "blockers": [],
-    "notes": "Admin module hoàn chỉnh, ZMA đã chuyển từ mock sang real API cho rewards/discount-tiers/vouchers"
+    "notes": "Tất cả build clean. Backend + Frontend verified. Seed đã chạy trên DB."
   },
   "pending_tasks": [
+    { "task": "Test login page trên Web Admin (http://localhost:3001/login)", "priority": "high", "notes": "Account: 0123456789 / 123456. Login page đã tạo, cần test actual flow." },
+    { "task": "Web Admin: Auth middleware — redirect /login nếu chưa có token", "priority": "high", "notes": "Hiện tại tất cả routes public, chưa có guard. Cần middleware check localStorage admin_token." },
     { "task": "Implement ZNS notifications (thăng hạng, hoa hồng, bill)", "priority": "high", "notes": "TODO comments đã để sẵn trong webhook.service.ts và transactions.service.ts. Cần tài khoản Zalo OA." },
-    { "task": "POST /api/v1/members/me/redeem — API đổi quà/discount tạo Redemption thật", "priority": "high", "notes": "ZMA redeemItemAtom hiện trừ điểm local, cần gọi backend tạo Redemption + voucher_code" },
-    { "task": "Admin: Thêm quà vào rewards_catalog từ trang /rewards (DB đang trống)", "priority": "medium", "notes": "GET /api/v1/members/rewards trả [] vì chưa có data" },
     { "task": "Admin: Fraud page + Webhook page", "priority": "medium", "notes": "2 trang admin chưa implement" },
     { "task": "Admin: Edit functionality cho Rewards, Discount Tiers", "priority": "medium", "notes": "Hiện chỉ có Add/Delete, chưa có Edit form" },
     { "task": "Multi-branch management: Permission cho manager xem bill cross-branch", "priority": "medium", "notes": "" },
     { "task": "Production: CUKCUK signature guard nên dùng HMAC-SHA256 per-branch", "priority": "low", "notes": "MVP đang fix cứng 'secret_123'" },
-    { "task": "Monthly spending reset (cron job đầu tháng)", "priority": "medium", "notes": "monthly_spending hiện chỉ cộng, chưa có logic reset" }
+    { "task": "Monthly spending reset (cron job đầu tháng)", "priority": "medium", "notes": "monthly_spending hiện chỉ cộng, chưa có logic reset" },
+    { "task": "Web Admin: Sidebar logout button", "priority": "low", "notes": "Clear localStorage admin_token + redirect /login" }
   ],
   "recent_changes": [
+    {
+      "timestamp": "2026-03-19T18:48:00+07:00",
+      "type": "feature",
+      "description": "Web Admin Login Page + Backend admin-login API (bcrypt). Seed admin account 0123456789/123456. ConditionalLayout ẩn sidebar tại /login.",
+      "files": ["BE: auth/auth.service.ts, auth.controller.ts, dto/admin-login.dto.ts", "WA: app/login/page.tsx, layout.tsx, components/conditional-layout.tsx, globals.css", "BE: prisma/seed.ts"]
+    },
+    {
+      "timestamp": "2026-03-19T17:00:00+07:00",
+      "type": "bugfix",
+      "description": "ZMA: Redeem modal bị nằm dưới viewport khi page chưa scroll. Fix: thay zmp-ui Modal bằng createPortal(modal, document.body) — luôn position:fixed giữa màn hình.",
+      "files": ["ZMA: components/rewards/redeem-modal.tsx, css/app.scss"]
+    },
+    {
+      "timestamp": "2026-03-19T16:25:00+07:00",
+      "type": "feature",
+      "description": "Seed 8 rewards catalog + 4 discount tiers vào DB. Dùng upsert với fixed UUID, an toàn re-run.",
+      "files": ["BE: prisma/seed.ts"]
+    },
+    {
+      "timestamp": "2026-03-19T10:58:00+07:00",
+      "type": "feature",
+      "description": "Redeem API: POST /api/v1/members/me/redeem. Atomic Prisma transaction: validate points > create Redemption (voucher_code ZDC-V-xxx) > create PointTransaction > update member balance > increment quantityRedeemed. ZMA redeemItemAtom gọi API thật thay vì local. Redeem modal async/await + loading state.",
+      "files": ["BE: members/dto/redeem.dto.ts, members.service.ts, members.controller.ts", "ZMA: stores/member-store.ts, components/rewards/redeem-modal.tsx"]
+    },
     {
       "timestamp": "2026-03-19T01:35:00+07:00",
       "type": "feature",
       "description": "ZMA: Thay mock data bằng API thật cho rewards, discount-tiers, vouchers",
       "files": ["src/members/members.controller.ts", "src/members/members.service.ts", "ZMA: stores/member-store.ts, hooks/use-member.ts, pages/rewards.tsx"]
-    },
-    {
-      "timestamp": "2026-03-19T00:15:00+07:00",
-      "type": "feature",
-      "description": "Admin CRUD Members — Create (auto referralCode + referrer link + default tier), Update (phone dup check), Delete (transaction protection + cascade)",
-      "files": ["src/admin/dto/member.dto.ts", "src/admin/services/admin-members.service.ts", "src/admin/controllers/admin-members.controller.ts"]
-    },
-    {
-      "timestamp": "2026-03-19T00:15:00+07:00",
-      "type": "feature",
-      "description": "Web Admin: Members list (API call), detail page (stats, referrals, tiers, point history, transactions), edit dialog, adjust points dialog, delete with confirm",
-      "files": ["NextJS: lib/api.ts, lib/member-actions.ts, app/members/page.tsx, app/members/[id]/page.tsx, components/clickable-row.tsx"]
-    },
-    {
-      "timestamp": "2026-03-18T22:00:00+07:00",
-      "type": "feature",
-      "description": "Admin Module: CRUD cho Tiers, Rewards, DiscountTiers, SystemConfigs + Web Admin dashboard với CRUD UI",
-      "files": ["src/admin/", "NextJS: app/**"]
-    },
-    {
-      "timestamp": "2026-03-18T20:50:00+07:00",
-      "type": "bugfix",
-      "description": "Fixed JwtStrategy crash — JWT_SECRET missing in .env",
-      "files": [".env"]
-    },
-    {
-      "timestamp": "2026-03-18T01:00:00+07:00",
-      "type": "feature",
-      "description": "CUKCUK Webhook endpoint - POST /api/v1/webhook/cukcuk",
-      "files": ["src/webhook/"]
     }
   ],
   "errors_encountered": [
     { "error": "JwtStrategy requires a secret or key", "solution": "JWT_SECRET was missing in .env, added JWT_SECRET=zodutcan-secret-key-2026", "resolved": true },
     { "error": "EADDRINUSE port 3003", "solution": "Kill conflicting process before restarting NestJS", "resolved": true },
     { "error": "Event handlers cannot be passed to Client Component props (onClick on <tr>)", "solution": "Created ClickableRow client component wrapper instead of onClick on server-rendered <tr>", "resolved": true },
-    { "error": "Prisma MemberCreateInput missing source field", "solution": "Removed source from admin member create — field doesn't exist in schema", "resolved": true },
-    { "error": "MemberDetail interface incorrectly extends MemberListItem (tierHistories mismatch)", "solution": "Made MemberDetail standalone interface instead of extending MemberListItem", "resolved": true }
+    { "error": "zmp-ui Modal stuck at bottom of page (position:relative inside Page scroll container)", "solution": "Replaced zmp-ui Modal with createPortal(modal, document.body) — custom overlay with position:fixed, always centered on viewport.", "resolved": true },
+    { "error": "Jotai async atom redeem() returns Promise but component used it synchronously", "solution": "Made handleConfirm async, added await + loading state + try/finally", "resolved": true },
+    { "error": "PowerShell curl = Invoke-WebRequest alias, not actual curl", "solution": "Use curl.exe explicitly on Windows", "resolved": true }
   ],
   "decisions_made": [
     { "decision": "Admin APIs in separate src/admin/ folder", "reason": "Tách biệt admin logic khỏi customer-facing API" },
@@ -74,6 +71,10 @@
     { "decision": "ClickableRow client component cho table row navigation", "reason": "Next.js Server Components không cho pass onClick, cần client wrapper" },
     { "decision": "Rewards/Discount APIs public (no auth)", "reason": "ZMA cần hiển thị catalog trước khi member login" },
     { "decision": "Vouchers API auth-required", "reason": "Voucher là data riêng của member" },
-    { "decision": "Admin delete member chặn nếu có transactions", "reason": "Bảo toàn data integrity, member có giao dịch không được xóa" }
+    { "decision": "Admin delete member chặn nếu có transactions", "reason": "Bảo toàn data integrity, member có giao dịch không được xóa" },
+    { "decision": "createPortal thay vì CSS override cho zmp-ui Modal", "reason": "CSS override không đủ vì Modal render inside Page DOM — Portal escape hoàn toàn" },
+    { "decision": "Admin login dùng bcryptjs (không bcrypt native)", "reason": "bcryptjs pure JS, không cần native build tools trên Windows" },
+    { "decision": "ConditionalLayout client component cho root layout", "reason": "Next.js nested layouts không cho override parent — cần client-side pathname check" },
+    { "decision": "localStorage cho admin JWT token", "reason": "MVP đơn giản, production nên dùng httpOnly cookie" }
   ]
 }
