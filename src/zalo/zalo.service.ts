@@ -135,9 +135,12 @@ export class ZaloService {
       };
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
-      this.logger.error(`Zalo user info failed: ${error.message}`);
-      this.logger.error(`Response: ${JSON.stringify(error.response?.data)}`);
-      throw new BadRequestException('ZALO_GET_USER_INFO_FAILED');
+      const zaloError = error.response?.data || error.message;
+      this.logger.error(`Zalo user info failed: ${JSON.stringify(zaloError)}`);
+      throw new BadRequestException({
+        message: 'ZALO_GET_USER_INFO_FAILED',
+        zaloDetail: zaloError,
+      });
     }
   }
 }
