@@ -1,12 +1,27 @@
 import { Injectable, Logger, HttpException, HttpStatus, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class ZaloService {
   private readonly logger = new Logger(ZaloService.name);
+  private readonly appSecret: string;
 
-  constructor(private configService: ConfigService) {}
+  constructor(private configService: ConfigService) {
+    this.appSecret = this.configService.get<string>('ZALO_APP_SECRET') || '';
+  }
+
+  /**
+   * Tính appsecret_proof = HMAC-SHA256(access_token, app_secret)
+   * Bắt buộc từ 01/01/2024 cho tất cả Zalo Open API calls
+   */
+  private computeAppSecretProof(accessToken: string): string {
+    return crypto
+      .createHmac('sha256', this.appSecret)
+      .update(accessToken)
+      .digest('hex');
+  }
 
   /**
    * Xác thực access token và lấy thông tin cơ bản từ Zalo
@@ -28,10 +43,17 @@ export class ZaloService {
     }
 
     try {
+      const appsecretProof = this.computeAppSecretProof(accessToken);
+
       const response = await axios.get('https://graph.zalo.me/v2.0/me', {
-        headers: { access_token: accessToken },
+        headers: {
+          access_token: accessToken,
+          appsecret_proof: appsecretProof,
+        },
         params: { fields: 'id,name,picture' },
       });
+
+      this.logger.log(`Zalo API response: ${JSON.stringify(response.data)}`);
 
       if (response.data.error) {
         this.logger.error(`Zalo API Error: ${JSON.stringify(response.data)}`);
@@ -40,12 +62,13 @@ export class ZaloService {
 
       return {
         zaloId: response.data.id,
-        zaloName: response.data.name,
+        zaloName: response.data.name || '',
         zaloAvatar: response.data.picture?.data?.url || '',
       };
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
       this.logger.error(`Failed to verify Zalo token: ${error.message}`);
+      this.logger.error(`Response data: ${JSON.stringify(error.response?.data)}`);
       throw new BadRequestException('INVALID_ZALO_ACCESS_TOKEN');
     }
   }
@@ -66,9 +89,7 @@ export class ZaloService {
     }
 
     try {
-      const secretKey = this.configService.get<string>('ZALO_APP_SECRET');
-
-      if (!secretKey) {
+      if (!this.appSecret) {
         this.logger.error('ZALO_APP_SECRET is not configured');
         throw new HttpException(
           'ZALO_CONFIG_ERROR',
@@ -76,13 +97,18 @@ export class ZaloService {
         );
       }
 
+      const appsecretProof = this.computeAppSecretProof(accessToken);
+
       const response = await axios.get('https://graph.zalo.me/v2.0/me/info', {
         headers: {
           access_token: accessToken,
           code: phoneToken,
-          secret_key: secretKey,
+          secret_key: this.appSecret,
+          appsecret_proof: appsecretProof,
         },
       });
+
+      this.logger.log(`Zalo phone API response: ${JSON.stringify(response.data)}`);
 
       if (response.data.error) {
         this.logger.error(
@@ -97,7 +123,7 @@ export class ZaloService {
       // Zalo returns phone number in format: 84xxxxxxxxx
       let phone = response.data.data?.number;
       if (!phone) {
-        this.logger.error('Phone number not found in Zalo response');
+        this.logger.error(`Phone number not found in Zalo response: ${JSON.stringify(response.data)}`);
         throw new HttpException(
           'PHONE_NOT_FOUND_IN_RESPONSE',
           HttpStatus.BAD_REQUEST,
@@ -112,6 +138,7 @@ export class ZaloService {
     } catch (error) {
       if (error instanceof HttpException) throw error;
       this.logger.error(`Zalo Phone API error: ${error.message}`);
+      this.logger.error(`Response data: ${JSON.stringify(error.response?.data)}`);
       throw new HttpException(
         'ZALO_PHONE_API_ERROR',
         HttpStatus.SERVICE_UNAVAILABLE,
