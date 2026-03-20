@@ -118,7 +118,10 @@ export class ZaloService {
 
       if (response.data.error) {
         this.logger.error(`Zalo user info error: ${JSON.stringify(response.data)}`);
-        throw new BadRequestException('ZALO_GET_USER_INFO_FAILED');
+        throw new BadRequestException({
+          message: 'ZALO_GET_USER_INFO_FAILED',
+          zaloDetail: response.data,
+        });
       }
 
       // Phone có thể trả về hoặc không, tùy scope đã grant
