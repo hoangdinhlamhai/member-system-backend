@@ -37,9 +37,9 @@ export class AuthService {
   }
 
   /**
-   * Zalo OAuth Login Flow (chính thức cho ZMA):
-   * 1. Verify zalo access token → lấy zaloId, name, avatar
-   * 2. Decrypt phone token → lấy SĐT thật
+   * Zalo OAuth Login Flow (Social API v4):
+   * 1. Exchange authCode → User Access Token v4 (via oauth.zaloapp.com)
+   * 2. Get user info (zaloId, name, avatar, phone) via graph.zalo.me
    * 3. Tìm member theo zaloId → nếu có thì update info
    * 4. Nếu không có → tìm theo phone → nếu có thì link zaloId (merge data)
    * 5. Nếu chưa có member nào → tạo mới
@@ -48,17 +48,20 @@ export class AuthService {
    */
   async zaloLogin(dto: ZaloLoginDto) {
     try {
-      // Step 1: Verify access token → lấy Zalo profile
-      const zaloUser = await this.zaloService.verifyAccessToken(dto.accessToken);
-      this.logger.log(`Zalo user verified: ${zaloUser.zaloName} (${zaloUser.zaloId})`);
-
-      // Step 2: Decrypt phone token → lấy SĐT
-      const { phone } = await this.zaloService.decryptPhoneNumber(
-        dto.phoneToken,
-        dto.accessToken,
+      // Step 1: Exchange authCode → User Access Token v4
+      const tokenData = await this.zaloService.exchangeAuthCode(
+        dto.authCode,
+        dto.codeVerifier,
       );
-      const normalizedPhone = this.normalizePhone(phone);
-      this.logger.log(`Zalo phone decrypted: ${normalizedPhone}`);
+      this.logger.log(`Zalo OAuth token exchanged successfully`);
+
+      // Step 2: Lấy user info bằng User Access Token v4
+      const zaloUser = await this.zaloService.getUserInfo(tokenData.accessToken);
+      this.logger.log(`Zalo user: ${zaloUser.zaloName} (${zaloUser.zaloId})`);
+
+      const normalizedPhone = zaloUser.phone
+        ? this.normalizePhone(zaloUser.phone)
+        : undefined;
 
       // Step 3: Tìm member theo zaloId
       let member = await this.membersService.findByZaloId(zaloUser.zaloId);
@@ -66,22 +69,22 @@ export class AuthService {
 
       if (member) {
         // Member đã tồn tại với zaloId → cập nhật info mới nhất
-        member = await this.membersService.updateMemberInfo(member.id, {
+        const updateData: any = {
           zaloName: zaloUser.zaloName,
           zaloAvatar: zaloUser.zaloAvatar,
-          phone: normalizedPhone,
           lastActiveAt: new Date(),
-        });
+        };
+        if (normalizedPhone) updateData.phone = normalizedPhone;
+
+        member = await this.membersService.updateMemberInfo(member.id, updateData);
         this.logger.log(`Existing Zalo member updated: ${member.id}`);
-      } else {
+      } else if (normalizedPhone) {
         // Step 4: Tìm theo phone (member có thể đã tạo qua phone-login)
         const existingByPhone = await this.prisma.member.findFirst({
           where: { phone: normalizedPhone },
         });
 
         if (existingByPhone) {
-          // Member đã có qua phone-login → link zaloId vào (merge)
-          // Check KHÔNG cho phép link nếu zaloId đã thuộc member khác
           if (existingByPhone.zaloId && 
               existingByPhone.zaloId !== zaloUser.zaloId && 
               !existingByPhone.zaloId.startsWith('phone_')) {
@@ -94,7 +97,6 @@ export class AuthService {
             lastActiveAt: new Date(),
           });
 
-          // Update zaloId trực tiếp (không qua updateMemberInfo vì field đó không trong interface)
           await this.prisma.member.update({
             where: { id: existingByPhone.id },
             data: { zaloId: zaloUser.zaloId },
@@ -105,7 +107,7 @@ export class AuthService {
             throw new UnauthorizedException('MEMBER_NOT_FOUND_AFTER_MERGE');
           }
 
-          this.logger.log(`Phone member merged with Zalo: ${member.id} (${normalizedPhone})`);
+          this.logger.log(`Phone member merged with Zalo: ${member.id}`);
         } else {
           // Step 5: Hoàn toàn mới → tạo member
           member = await this.membersService.createMember({
@@ -116,16 +118,30 @@ export class AuthService {
           });
           isNewUser = true;
 
-          // Step 6: Xử lý referral nếu có
           if (dto.refCode) {
             await this.referralsService.processReferral(dto.refCode, member.id);
           }
 
           this.logger.log(`New Zalo member created: ${member.id}`);
         }
+      } else {
+        // Không có phone → tạo member chỉ với Zalo info
+        member = await this.membersService.createMember({
+          zaloId: zaloUser.zaloId,
+          zaloName: zaloUser.zaloName,
+          zaloAvatar: zaloUser.zaloAvatar,
+          phone: `zalo_${zaloUser.zaloId}`,
+        });
+        isNewUser = true;
+
+        if (dto.refCode) {
+          await this.referralsService.processReferral(dto.refCode, member.id);
+        }
+
+        this.logger.log(`New Zalo member (no phone): ${member.id}`);
       }
 
-      // Step 7: Tạo JWT — member is guaranteed non-null at this point
+      // Step 7: Tạo JWT
       if (!member) {
         throw new UnauthorizedException('MEMBER_CREATION_FAILED');
       }

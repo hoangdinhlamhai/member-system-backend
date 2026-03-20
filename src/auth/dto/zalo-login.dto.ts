@@ -3,11 +3,11 @@ import { IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
 export class ZaloLoginDto {
   @IsString()
   @IsNotEmpty()
-  accessToken: string;
+  authCode: string;
 
   @IsString()
   @IsNotEmpty()
-  phoneToken: string;
+  codeVerifier: string;
 
   @IsOptional()
   @IsString()
