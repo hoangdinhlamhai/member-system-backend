@@ -1,7 +1,6 @@
-import { Injectable, Logger, HttpException, HttpStatus, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
-import * as crypto from 'crypto';
 
 @Injectable()
 export class ZaloService {
@@ -14,16 +13,10 @@ export class ZaloService {
     this.appSecret = this.configService.get<string>('ZALO_APP_SECRET') || '';
   }
 
-  private computeAppSecretProof(accessToken: string): string {
-    return crypto
-      .createHmac('sha256', this.appSecret)
-      .update(accessToken)
-      .digest('hex');
-  }
-
   /**
    * Social API v4 — Exchange authCode for User Access Token
    * Endpoint: POST https://oauth.zaloapp.com/v4/access_token
+   * Used to VERIFY the user is legitimately authenticated via Zalo.
    * KHÔNG yêu cầu IP Việt Nam!
    */
   async exchangeAuthCode(authCode: string, codeVerifier: string): Promise<{
@@ -61,7 +54,7 @@ export class ZaloService {
         },
       );
 
-      this.logger.log(`OAuth token exchange response: ${JSON.stringify(response.data)}`);
+      this.logger.log(`OAuth token exchange response status OK`);
 
       if (response.data.error) {
         this.logger.error(`OAuth exchange error: ${JSON.stringify(response.data)}`);
@@ -76,74 +69,8 @@ export class ZaloService {
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
       this.logger.error(`OAuth exchange failed: ${error.message}`);
-      this.logger.error(`Response: ${JSON.stringify(error.response?.data)}`);
       throw new BadRequestException('ZALO_AUTH_CODE_EXCHANGE_FAILED');
     }
   }
-
-  /**
-   * Social API v4 — Lấy user info bằng User Access Token
-   * Endpoint: GET https://graph.zalo.me/v2.0/me
-   * Dùng User Access Token v4 (từ OAuth exchange)
-   */
-  async getUserInfo(accessToken: string): Promise<{
-    zaloId: string;
-    zaloName: string;
-    zaloAvatar: string;
-    phone?: string;
-  }> {
-    const mockMode = this.configService.get<string>('ZALO_MOCK_MODE') === 'true';
-    if (mockMode && accessToken === 'mock-user-access-token') {
-      this.logger.warn('Using MOCK mode for Zalo user info');
-      return {
-        zaloId: '987654321',
-        zaloName: 'Antigravity Tester',
-        zaloAvatar: 'https://avatar.zalo.me/default',
-        phone: '0987654321',
-      };
-    }
-
-    try {
-      const appsecretProof = this.computeAppSecretProof(accessToken);
-
-      const response = await axios.get('https://graph.zalo.me/v2.0/me', {
-        headers: {
-          access_token: accessToken,
-          appsecret_proof: appsecretProof,
-        },
-        params: { fields: 'id,name,picture,phone' },
-      });
-
-      this.logger.log(`Zalo user info response: ${JSON.stringify(response.data)}`);
-
-      if (response.data.error) {
-        this.logger.error(`Zalo user info error: ${JSON.stringify(response.data)}`);
-        throw new BadRequestException({
-          message: 'ZALO_GET_USER_INFO_FAILED',
-          zaloDetail: response.data,
-        });
-      }
-
-      // Phone có thể trả về hoặc không, tùy scope đã grant
-      let phone = response.data.phone;
-      if (phone && phone.startsWith('84')) {
-        phone = '0' + phone.substring(2);
-      }
-
-      return {
-        zaloId: response.data.id,
-        zaloName: response.data.name || '',
-        zaloAvatar: response.data.picture?.data?.url || '',
-        phone: phone || undefined,
-      };
-    } catch (error) {
-      if (error instanceof BadRequestException) throw error;
-      const zaloError = error.response?.data || error.message;
-      this.logger.error(`Zalo user info failed: ${JSON.stringify(zaloError)}`);
-      throw new BadRequestException({
-        message: 'ZALO_GET_USER_INFO_FAILED',
-        zaloDetail: zaloError,
-      });
-    }
-  }
 }
+

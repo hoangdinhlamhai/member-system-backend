@@ -1,80 +1,73 @@
 {
-  "updated_at": "2026-03-20T01:35:00+07:00",
+  "updated_at": "2026-03-21T01:20:00+07:00",
   "working_on": {
-    "feature": "Redeem API + Admin Login + Web Admin Auth",
-    "task": "All completed — next: test login page, then ZNS notifications",
-    "status": "completed",
+    "feature": "Zalo OAuth Login (Social API v4)",
+    "task": "Debug graph.zalo.me IP restriction — need exact zaloDetail error",
+    "status": "debugging",
     "files": [
-      "BE: src/auth/auth.service.ts, auth.controller.ts, dto/admin-login.dto.ts",
-      "BE: src/members/dto/redeem.dto.ts, members.service.ts, members.controller.ts",
-      "BE: prisma/seed.ts",
-      "WA: app/login/page.tsx, app/layout.tsx, components/conditional-layout.tsx, app/globals.css",
-      "ZMA: stores/member-store.ts, components/rewards/redeem-modal.tsx, css/app.scss"
+      "BE: src/zalo/zalo.service.ts (exchangeAuthCode + getUserInfo)",
+      "BE: src/auth/auth.service.ts (zaloLogin v4 flow)",
+      "BE: src/auth/auth.controller.ts (clean, no debug endpoint)",
+      "BE: src/auth/dto/zalo-login.dto.ts (authCode + codeVerifier)",
+      "ZMA: src/services/zalo-auth.ts (getAuthCode flow)",
+      "ZMA: src/stores/auth.ts (zaloLoginActionAtom v4)",
+      "ZMA: src/pages/login.tsx (debug logging active)"
     ],
-    "blockers": [],
-    "notes": "Tất cả build clean. Backend + Frontend verified. Seed đã chạy trên DB."
+    "blockers": [
+      "graph.zalo.me/v2.0/me CHẶN IP ngoài Việt Nam — cả Vercel US và DigitalOcean Singapore đều bị",
+      "exchangeAuthCode() qua oauth.zaloapp.com THÀNH CÔNG (không chặn IP)",
+      "getUserInfo() qua graph.zalo.me THẤT BẠI (chặn IP)",
+      "Đang chờ zaloDetail error từ frontend debug log"
+    ],
+    "notes": "Backend đã push + Vercel deployed. ZMA đã deploy với debug logging. Chờ user test lại để xem exact zaloDetail."
   },
   "pending_tasks": [
-    { "task": "Test login page trên Web Admin (http://localhost:3001/login)", "priority": "high", "notes": "Account: 0123456789 / 123456. Login page đã tạo, cần test actual flow." },
-    { "task": "Web Admin: Auth middleware — redirect /login nếu chưa có token", "priority": "high", "notes": "Hiện tại tất cả routes public, chưa có guard. Cần middleware check localStorage admin_token." },
-    { "task": "Implement ZNS notifications (thăng hạng, hoa hồng, bill)", "priority": "high", "notes": "TODO comments đã để sẵn trong webhook.service.ts và transactions.service.ts. Cần tài khoản Zalo OA." },
+    { "task": "Fix Zalo getUserInfo IP restriction", "priority": "critical", "notes": "Options: (A) getUserInfo() on frontend via ZMP SDK → send to backend, (B) VPS Việt Nam, (C) Skip phone → Zalo ID only login. Recommend Option A." },
+    { "task": "Remove debug code from ZMA login.tsx after fixing", "priority": "high", "notes": "handleZaloLogin has alert() + detailed debug logging — must remove before production" },
+    { "task": "Fix Coolify VPS: SSL + 502 Bad Gateway", "priority": "medium", "notes": "zo-dut-can-be.duckdns.org on DigitalOcean 157.245.156.189. Let's Encrypt not provisioned, container not running." },
+    { "task": "Update ZMA .env VITE_API_URL to VPS when ready", "priority": "medium", "notes": "Currently pointing to Vercel" },
+    { "task": "Test login page trên Web Admin (http://localhost:3001/login)", "priority": "high", "notes": "Account: 0123456789 / 123456" },
+    { "task": "Implement ZNS notifications (thăng hạng, hoa hồng, bill)", "priority": "high", "notes": "TODO comments đã để sẵn" },
     { "task": "Admin: Fraud page + Webhook page", "priority": "medium", "notes": "2 trang admin chưa implement" },
-    { "task": "Admin: Edit functionality cho Rewards, Discount Tiers", "priority": "medium", "notes": "Hiện chỉ có Add/Delete, chưa có Edit form" },
-    { "task": "Multi-branch management: Permission cho manager xem bill cross-branch", "priority": "medium", "notes": "" },
-    { "task": "Production: CUKCUK signature guard nên dùng HMAC-SHA256 per-branch", "priority": "low", "notes": "MVP đang fix cứng 'secret_123'" },
-    { "task": "Monthly spending reset (cron job đầu tháng)", "priority": "medium", "notes": "monthly_spending hiện chỉ cộng, chưa có logic reset" },
-    { "task": "Web Admin: Sidebar logout button", "priority": "low", "notes": "Clear localStorage admin_token + redirect /login" }
+    { "task": "Monthly spending reset (cron job đầu tháng)", "priority": "medium", "notes": "" },
+    { "task": "Web Admin: Sidebar logout button", "priority": "low", "notes": "" }
   ],
   "recent_changes": [
     {
-      "timestamp": "2026-03-19T18:48:00+07:00",
-      "type": "feature",
-      "description": "Web Admin Login Page + Backend admin-login API (bcrypt). Seed admin account 0123456789/123456. ConditionalLayout ẩn sidebar tại /login.",
-      "files": ["BE: auth/auth.service.ts, auth.controller.ts, dto/admin-login.dto.ts", "WA: app/login/page.tsx, layout.tsx, components/conditional-layout.tsx, globals.css", "BE: prisma/seed.ts"]
+      "timestamp": "2026-03-21T01:20:00+07:00",
+      "type": "refactor",
+      "description": "Refactored Zalo OAuth from Mini App token flow to Social API v4 (authCode + PKCE). ZaloService: exchangeAuthCode() + getUserInfo(). DTO: authCode+codeVerifier. ZMA: getAuthCode() instead of getAccessToken()+getPhoneNumber(). exchangeAuthCode works, getUserInfo still blocked by IP.",
+      "files": ["BE: zalo/zalo.service.ts, auth/auth.service.ts, auth.controller.ts, dto/zalo-login.dto.ts", "ZMA: services/zalo-auth.ts, stores/auth.ts, pages/login.tsx"]
     },
     {
-      "timestamp": "2026-03-19T17:00:00+07:00",
-      "type": "bugfix",
-      "description": "ZMA: Redeem modal bị nằm dưới viewport khi page chưa scroll. Fix: thay zmp-ui Modal bằng createPortal(modal, document.body) — luôn position:fixed giữa màn hình.",
-      "files": ["ZMA: components/rewards/redeem-modal.tsx, css/app.scss"]
+      "timestamp": "2026-03-20T20:25:00+07:00",
+      "type": "debug",
+      "description": "Tested Coolify VPS (zo-dut-can-be.duckdns.org): SSL untrusted (Let's Encrypt not provisioned) + 502 Bad Gateway (container not running). Port 443/80 reachable on 157.245.156.189.",
+      "files": []
     },
     {
-      "timestamp": "2026-03-19T16:25:00+07:00",
-      "type": "feature",
-      "description": "Seed 8 rewards catalog + 4 discount tiers vào DB. Dùng upsert với fixed UUID, an toàn re-run.",
-      "files": ["BE: prisma/seed.ts"]
+      "timestamp": "2026-03-20T17:13:00+07:00",
+      "type": "debug",
+      "description": "Debug endpoint revealed: graph.zalo.me blocks non-Vietnam IPs. Vercel IP 50.19.136.196 (US) → error -501: 'Personal information is limited due to IP address not inside Vietnam'. appsecret_proof was correct.",
+      "files": ["BE: auth/auth.controller.ts (debug-zalo endpoint, later removed)"]
     },
     {
-      "timestamp": "2026-03-19T10:58:00+07:00",
+      "timestamp": "2026-03-20T16:00:00+07:00",
       "type": "feature",
-      "description": "Redeem API: POST /api/v1/members/me/redeem. Atomic Prisma transaction: validate points > create Redemption (voucher_code ZDC-V-xxx) > create PointTransaction > update member balance > increment quantityRedeemed. ZMA redeemItemAtom gọi API thật thay vì local. Redeem modal async/await + loading state.",
-      "files": ["BE: members/dto/redeem.dto.ts, members.service.ts, members.controller.ts", "ZMA: stores/member-store.ts, components/rewards/redeem-modal.tsx"]
-    },
-    {
-      "timestamp": "2026-03-19T01:35:00+07:00",
-      "type": "feature",
-      "description": "ZMA: Thay mock data bằng API thật cho rewards, discount-tiers, vouchers",
-      "files": ["src/members/members.controller.ts", "src/members/members.service.ts", "ZMA: stores/member-store.ts, hooks/use-member.ts, pages/rewards.tsx"]
+      "description": "Initial Zalo OAuth implementation: ZaloService (verifyAccessToken + decryptPhoneNumber with appsecret_proof), AuthService.zaloLogin, ZMA login page redesign (Zalo primary, phone fallback), zalo-auth.ts service, zaloLoginActionAtom.",
+      "files": ["BE: zalo/zalo.service.ts, auth/*.ts", "ZMA: services/zalo-auth.ts, stores/auth.ts, pages/login.tsx"]
     }
   ],
   "errors_encountered": [
-    { "error": "JwtStrategy requires a secret or key", "solution": "JWT_SECRET was missing in .env, added JWT_SECRET=zodutcan-secret-key-2026", "resolved": true },
-    { "error": "EADDRINUSE port 3003", "solution": "Kill conflicting process before restarting NestJS", "resolved": true },
-    { "error": "Event handlers cannot be passed to Client Component props (onClick on <tr>)", "solution": "Created ClickableRow client component wrapper instead of onClick on server-rendered <tr>", "resolved": true },
-    { "error": "zmp-ui Modal stuck at bottom of page (position:relative inside Page scroll container)", "solution": "Replaced zmp-ui Modal with createPortal(modal, document.body) — custom overlay with position:fixed, always centered on viewport.", "resolved": true },
-    { "error": "Jotai async atom redeem() returns Promise but component used it synchronously", "solution": "Made handleConfirm async, added await + loading state + try/finally", "resolved": true },
-    { "error": "PowerShell curl = Invoke-WebRequest alias, not actual curl", "solution": "Use curl.exe explicitly on Windows", "resolved": true }
+    { "error": "Zalo graph.zalo.me error -501: Personal information is limited due to IP address not inside Vietnam: 50.19.136.196", "solution": "Vercel server is in US. Need Vietnam VPS or alternative approach (getUserInfo on frontend). Tried Social API v4 — exchangeAuthCode works but getUserInfo via graph.zalo.me still blocked.", "resolved": false },
+    { "error": "Zalo SDK authorize rejected by user (code -201)", "solution": "User clicked negative button on permission popup. Normal behavior — user must accept permissions.", "resolved": true },
+    { "error": "Coolify VPS SSL untrusted + 502 Bad Gateway", "solution": "Let's Encrypt not provisioned yet. Container not running (likely missing env vars). Need to check Coolify deployment logs.", "resolved": false },
+    { "error": "Typo in variable name: appsecretProof vs appSecretProof", "solution": "Fixed casing to appSecretProof", "resolved": true }
   ],
   "decisions_made": [
-    { "decision": "Admin APIs in separate src/admin/ folder", "reason": "Tách biệt admin logic khỏi customer-facing API" },
-    { "decision": "Web Admin gọi backend API (lib/api.ts) thay vì direct Prisma cho Members", "reason": "Centralize business logic ở backend, frontend chỉ hiển thị" },
-    { "decision": "ClickableRow client component cho table row navigation", "reason": "Next.js Server Components không cho pass onClick, cần client wrapper" },
-    { "decision": "Rewards/Discount APIs public (no auth)", "reason": "ZMA cần hiển thị catalog trước khi member login" },
-    { "decision": "Vouchers API auth-required", "reason": "Voucher là data riêng của member" },
-    { "decision": "Admin delete member chặn nếu có transactions", "reason": "Bảo toàn data integrity, member có giao dịch không được xóa" },
-    { "decision": "createPortal thay vì CSS override cho zmp-ui Modal", "reason": "CSS override không đủ vì Modal render inside Page DOM — Portal escape hoàn toàn" },
-    { "decision": "Admin login dùng bcryptjs (không bcrypt native)", "reason": "bcryptjs pure JS, không cần native build tools trên Windows" },
-    { "decision": "ConditionalLayout client component cho root layout", "reason": "Next.js nested layouts không cho override parent — cần client-side pathname check" },
-    { "decision": "localStorage cho admin JWT token", "reason": "MVP đơn giản, production nên dùng httpOnly cookie" }
+    { "decision": "Switch from Mini App token flow to Social API v4 (authCode + PKCE)", "reason": "Attempt to bypass IP restriction. oauth.zaloapp.com NOT blocked (works), but graph.zalo.me STILL blocked." },
+    { "decision": "ZALO_APP_ID = Zalo App cha (4243775393589850681), ZMA APP_ID = Mini App con (1756817649065317309)", "reason": "App Secret belongs to parent Zalo App, not Mini App. Different IDs for different contexts." },
+    { "decision": "Considered 3 options for IP issue: (A) getUserInfo on frontend, (B) VPS Việt Nam, (C) Zalo ID-only login", "reason": "User cannot find Vietnam VPS. Option A (frontend getUserInfo) is most practical next step." },
+    { "decision": "Coolify on DigitalOcean Singapore as alternative hosting", "reason": "User already has this setup. But Singapore IP may also be blocked by Zalo." }
   ]
 }

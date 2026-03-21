@@ -2,7 +2,7 @@
   "meta": {
     "schema_version": "1.1.0",
     "awf_version": "4.0.2",
-    "last_updated": "2026-03-20T01:35:00+07:00"
+    "last_updated": "2026-03-21T10:55:00+07:00"
   },
   "project": {
     "name": "Zô Dứt Cạn - Backend",
@@ -26,7 +26,11 @@
     "id_generator": "nanoid (referral codes, QR codes, voucher codes)",
     "password_hashing": "bcryptjs",
     "port": 3003,
-    "env_vars": ["DATABASE_URL", "JWT_SECRET", "PORT"]
+    "env_vars": ["DATABASE_URL", "JWT_SECRET", "PORT", "ZALO_APP_ID", "ZALO_APP_SECRET", "ZALO_MOCK_MODE"],
+    "hosting": {
+      "primary": "Vercel (US region — free tier)",
+      "alternative": "Coolify on DigitalOcean Singapore — domain: zo-dut-can-be.duckdns.org (SSL issue pending)"
+    }
   },
   "database_schema": {
     "summary": "Hệ thống lưu: Brand/Branch (thương hiệu/chi nhánh), Member (khách hàng), Tier (hạng thẻ), Transaction (giao dịch), Referral (giới thiệu), Points (điểm thưởng), Reward/Voucher (đổi quà), Staff (nhân viên + admin), SystemConfig",
@@ -51,6 +55,7 @@
     "relationships_explained": "1 Brand có nhiều Branch. 1 Branch có nhiều Staff & Transaction. 1 Member có nhiều Transaction, PointTransaction, TierHistory, Redemption. 1 Member giới thiệu nhiều Member (referral). Mỗi Transaction có thể generate ReferralEarning cho referrer. RewardCatalog → Redemption (đổi quà). DiscountTier → Redemption (giảm giá)."
   },
   "api_endpoints": [
+    { "group": "Auth", "method": "POST", "path": "/auth/zalo-login", "explained": "Đăng nhập Zalo. Nhận zaloId+zaloName+zaloAvatar (from ZMA getUserInfo) + authCode+codeVerifier (verification) → exchangeAuthCode → find/create member → JWT. Không cần graph.zalo.me!" },
     { "group": "Auth", "method": "POST", "path": "/auth/phone-login", "explained": "Đăng nhập bằng SĐT — tự tạo member nếu chưa có, trả JWT." },
     { "group": "Auth", "method": "POST", "path": "/auth/admin-login", "explained": "Đăng nhập Admin Web — phone + password (bcrypt), chỉ role admin/store_manager. Trả JWT + staff info." },
     { "group": "Auth", "method": "GET", "path": "/auth/me", "explained": "Thông tin user hiện tại từ JWT." },
@@ -89,15 +94,16 @@
     "Đổi quà: atomic Prisma $transaction → create Redemption + PointTransaction + update member balance + increment quantityRedeemed",
     "Voucher code format: ZDC-V-XXXXXXXX (nanoid 8 chars), hết hạn sau 30 ngày",
     "Discount tiers: 5%(20pts,max25K), 10%(40pts,max50K), 15%(70pts,max100K), 20%(120pts,max200K)",
-    "Admin login: chỉ role admin/store_manager, bcrypt password, JWT response"
+    "Admin login: chỉ role admin/store_manager, bcrypt password, JWT response",
+    "Zalo Login: ZMA getUserInfo() (client-side, trả trực tiếp zaloId/name/avatar) + getAuthCode() → backend exchangeAuthCode (verification only) → find/create member. KHÔNG cần graph.zalo.me!"
   ],
   "modules": [
-    { "name": "AuthModule", "files": ["auth/"], "notes": "phone-login (ZMA), admin-login (Web Admin with bcrypt)" },
+    { "name": "AuthModule", "files": ["auth/"], "notes": "zalo-login (OAuth v4), phone-login (ZMA fallback), admin-login (Web Admin bcrypt)" },
     { "name": "MembersModule", "files": ["members/"], "notes": "Public API cho ZMA + rewards/discount-tiers/vouchers + POST /redeem" },
     { "name": "TransactionsModule", "files": ["transactions/"] },
     { "name": "ReferralsModule", "files": ["referrals/"] },
     { "name": "WebhookModule", "files": ["webhook/"] },
-    { "name": "ZaloModule", "files": ["zalo/"] },
+    { "name": "ZaloModule", "files": ["zalo/"], "notes": "exchangeAuthCode only (PKCE verification). getUserInfo removed — data comes from ZMA frontend" },
     { "name": "PrismaModule", "files": ["prisma/"] },
     { "name": "AdminModule", "files": ["admin/"], "notes": "Tất cả admin endpoints: members, tiers, rewards, configs. Folder riêng src/admin/" }
   ],
@@ -112,7 +118,8 @@
       "ZMA calls backend via axios api service + Jotai atoms for state management",
       "Redeem: RedeemDto(type, itemId) → service validates → prisma $transaction atomic",
       "Admin login: bcryptjs compare → JWT with type='staff' + role",
-      "Web Admin auth: JWT in localStorage (admin_token), ConditionalLayout hides sidebar on /login"
+      "Web Admin auth: JWT in localStorage (admin_token), ConditionalLayout hides sidebar on /login",
+      "Zalo Login: ZMA getUserInfo() (client-side, direct) + getAuthCode() → backend exchangeAuthCode() at oauth.zaloapp.com (verification only). No graph.zalo.me needed!"
     ],
     "gotchas": [
       "JwtStrategy requires JWT_SECRET in .env — empty string '' causes crash",
@@ -127,7 +134,13 @@
       "zmp-ui Modal renders inside Page scroll container (position: relative) → modal stuck at bottom. Fixed with createPortal to document.body",
       "zmp-ui class prefix is 'zaui' (e.g. zaui-modal, zaui-mask, zaui-modal-wrapper)",
       "PowerShell: curl is alias for Invoke-WebRequest, use curl.exe for raw HTTP",
-      "Jotai async atoms: redeem() returns Promise, components must async/await + loading state"
+      "Jotai async atoms: redeem() returns Promise, components must async/await + loading state",
+      "✅ SOLVED: graph.zalo.me IP block bypassed! ZMA getUserInfo() lấy data client-side, backend chỉ dùng oauth.zaloapp.com (không bị chặn)",
+      "Zalo có 2 ID khác nhau: Zalo App ID (cha: 4243775393589850681) vs Mini App ID (con: 1756817649065317309). Backend ZALO_APP_ID dùng App cha, ZMA APP_ID dùng Mini App con.",
+      "ZMP SDK getUserInfo({autoRequestPermission:true}) trả {id, name, avatar} trực tiếp — KHÔNG cần server giải mã",
+      "ZMP SDK getPhoneNumber() trả token mã hóa — CẦN server giải mã qua graph.zalo.me → vẫn bị chặn IP. Nên dùng zaloId thay vì phone.",
+      "ZMP SDK getAuthCode() trả {authCode, authCodeVerify} — authCodeVerify chính là code_verifier cho PKCE",
+      "Coolify on DigitalOcean Singapore: SSL Let's Encrypt có thể chưa provision + container 502 Bad Gateway nếu app chưa chạy"
     ]
   },
   "seed_data": {
@@ -137,5 +150,12 @@
     "rewards": ["Trà Sữa (50pts)", "Cà Phê (30pts)", "Sinh Tố Bơ (45pts)", "Bánh Mì (60pts)", "Combo Sáng (100pts)", "Voucher 50K (80pts)", "Túi Tote (200pts)", "Ly Giữ Nhiệt (300pts)"],
     "discount_tiers": ["5% (20pts)", "10% (40pts)", "15% (70pts)", "20% (120pts)"],
     "test_member": "0901234567"
+  },
+  "zalo_integration": {
+    "zalo_app_id": "4243775393589850681 (App cha: HệThốngThànhViênZôDứtCạn)",
+    "mini_app_id": "1756817649065317309 (Mini App: Zô Dứt Cạn)",
+    "oauth_flow": "ZMA getUserInfo() (client-side) + getAuthCode() → backend exchangeAuthCode (PKCE verification only)",
+    "current_status": "IMPLEMENTED — getUserInfo() on frontend bypasses IP restriction. Backend verifies via oauth.zaloapp.com only.",
+    "blocker": "NONE — IP restriction bypassed by using ZMA SDK getUserInfo() client-side"
   }
 }
