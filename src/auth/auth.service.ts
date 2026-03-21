@@ -7,6 +7,7 @@ import { ReferralsService } from '../referrals/referrals.service';
 import { ZaloLoginDto } from './dto/zalo-login.dto';
 import { PhoneLoginDto } from './dto/phone-login.dto';
 import { AdminLoginDto } from './dto/admin-login.dto';
+import { CompleteProfileDto } from './dto/complete-profile.dto';
 import * as bcrypt from 'bcryptjs';
 
 
@@ -74,18 +75,22 @@ export class AuthService {
         member = await this.membersService.updateMemberInfo(member.id, updateData);
         this.logger.log(`Existing Zalo member updated: ${member.id}`);
       } else {
-        // Tìm xem có member với zaloId placeholder (phone_xxx) không → merge
-        // Hoặc tạo mới
+        // Tạo member mới chỉ với Zalo info (chưa có SĐT)
         member = await this.membersService.createMember({
           zaloId: dto.zaloId,
           zaloName: dto.zaloName,
           zaloAvatar: dto.zaloAvatar,
-          phone: `zalo_${dto.zaloId}`,
         });
         isNewUser = true;
 
+        // Xử lý mã giới thiệu nếu có
         if (dto.refCode) {
-          await this.referralsService.processReferral(dto.refCode, member.id);
+          try {
+            await this.referralsService.processReferral(dto.refCode, member.id);
+            this.logger.log(`Referral processed: ${dto.refCode} for ${member.id}`);
+          } catch (refErr) {
+            this.logger.warn(`Referral failed (non-critical): ${refErr.message}`);
+          }
         }
 
         this.logger.log(`New Zalo member created: ${member.id}`);
@@ -124,6 +129,108 @@ export class AuthService {
         message: 'ZALO_LOGIN_FAILED',
         detail: error.message,
         stack: error.stack?.substring(0, 300),
+      });
+    }
+  }
+
+  /**
+   * Complete profile sau Zalo login:
+   * 1. Nhập SĐT (bắt buộc) + mã giới thiệu (optional)
+   * 2. Merge với member phone-login cũ nếu trùng SĐT
+   * 3. Xử lý referral nếu có
+   */
+  async completeProfile(memberId: string, dto: CompleteProfileDto) {
+    try {
+      const phone = this.normalizePhone(dto.phone);
+
+      const currentMember = await this.membersService.findById(memberId);
+      if (!currentMember) {
+        throw new UnauthorizedException('MEMBER_NOT_FOUND');
+      }
+
+      // Check xem SĐT đã có member khác chưa
+      const existingByPhone = await this.prisma.member.findFirst({
+        where: { phone },
+      });
+
+      let member;
+
+      if (existingByPhone && existingByPhone.id !== currentMember.id) {
+        if (existingByPhone.zaloId && !existingByPhone.zaloId.startsWith('phone_')) {
+          throw new UnauthorizedException('PHONE_ALREADY_LINKED');
+        }
+
+        // Merge: xóa member Zalo-only mới TRƯỚC (free unique zaloId), rồi update member cũ
+        const zaloId = currentMember.zaloId;
+        const zaloName = currentMember.zaloName;
+        const zaloAvatar = currentMember.zaloAvatar;
+
+        member = await this.prisma.$transaction(async (tx) => {
+          // 1. Xóa member mới (Zalo-only, chưa có data)
+          await tx.member.delete({ where: { id: currentMember.id } });
+
+          // 2. Update member cũ (phone-login) với Zalo info
+          return tx.member.update({
+            where: { id: existingByPhone.id },
+            data: {
+              zaloId,
+              zaloName,
+              zaloAvatar,
+              lastActiveAt: new Date(),
+              updatedAt: new Date(),
+            },
+          });
+        });
+
+        this.logger.log(`Merged Zalo member ${currentMember.id} into phone member ${member.id}`);
+      } else {
+        // Chưa có ai dùng SĐT này → cập nhật member hiện tại
+        member = await this.prisma.member.update({
+          where: { id: currentMember.id },
+          data: {
+            phone,
+            lastActiveAt: new Date(),
+            updatedAt: new Date(),
+          },
+        });
+        this.logger.log(`Updated phone for member ${member.id}`);
+      }
+
+      // Xử lý referral nếu có
+      if (dto.refCode) {
+        try {
+          await this.referralsService.processReferral(dto.refCode, member.id);
+          this.logger.log(`Referral processed: ${dto.refCode} for ${member.id}`);
+        } catch (refErr) {
+          this.logger.warn(`Referral failed (non-critical): ${refErr.message}`);
+        }
+      }
+
+      // Tạo JWT mới (member ID có thể thay đổi sau merge)
+      const accessToken = this.jwtService.sign({
+        sub: member.id,
+        zaloId: member.zaloId,
+        phone: member.phone,
+        type: 'member',
+      });
+
+      return {
+        accessToken,
+        member: {
+          id: member.id,
+          zaloId: member.zaloId,
+          zaloName: member.zaloName,
+          zaloAvatar: member.zaloAvatar,
+          phone: member.phone,
+          points: member.pointsBalance ?? 0,
+        },
+      };
+    } catch (error) {
+      this.logger.error(`Complete profile failed: ${error.message}`, error.stack);
+      if (error.status) throw error;
+      throw new UnauthorizedException({
+        message: 'COMPLETE_PROFILE_FAILED',
+        detail: error.message,
       });
     }
   }
