@@ -35,7 +35,7 @@ export class ZaloService {
     }
 
     try {
-      this.logger.log(`Exchanging auth code (length: ${authCode.length})`);
+      this.logger.log(`Exchanging auth code (length: ${authCode.length}), app_id: ${this.appId.substring(0, 6)}...`);
 
       const params = new URLSearchParams();
       params.append('app_id', this.appId);
@@ -54,11 +54,15 @@ export class ZaloService {
         },
       );
 
-      this.logger.log(`OAuth token exchange response status OK`);
+      this.logger.log(`OAuth response: ${JSON.stringify(response.data)}`);
 
       if (response.data.error) {
         this.logger.error(`OAuth exchange error: ${JSON.stringify(response.data)}`);
-        throw new BadRequestException('ZALO_AUTH_CODE_INVALID');
+        throw new BadRequestException({
+          message: 'ZALO_AUTH_CODE_INVALID',
+          zaloError: response.data,
+          appIdUsed: this.appId.substring(0, 8) + '...',
+        });
       }
 
       return {
@@ -68,8 +72,13 @@ export class ZaloService {
       };
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
-      this.logger.error(`OAuth exchange failed: ${error.message}`);
-      throw new BadRequestException('ZALO_AUTH_CODE_EXCHANGE_FAILED');
+      const detail = error.response?.data || error.message;
+      this.logger.error(`OAuth exchange failed: ${JSON.stringify(detail)}`);
+      throw new BadRequestException({
+        message: 'ZALO_AUTH_CODE_EXCHANGE_FAILED',
+        detail,
+        appIdUsed: this.appId.substring(0, 8) + '...',
+      });
     }
   }
 }
