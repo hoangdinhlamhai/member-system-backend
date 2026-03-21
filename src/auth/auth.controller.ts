@@ -1,8 +1,9 @@
-import { Controller, Post, Body, Get, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, Patch, Body, Get, UseGuards, Request } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { ZaloLoginDto } from './dto/zalo-login.dto';
 import { PhoneLoginDto } from './dto/phone-login.dto';
 import { AdminLoginDto } from './dto/admin-login.dto';
+import { CompleteProfileDto } from './dto/complete-profile.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 @Controller('auth')
@@ -41,5 +42,15 @@ export class AuthController {
   @Get('me')
   getProfile(@Request() req) {
     return req.user;
+  }
+
+  /**
+   * Hoàn tất profile sau Zalo login: nhập SĐT + mã giới thiệu
+   * Requires JWT (member đã login qua Zalo)
+   */
+  @UseGuards(JwtAuthGuard)
+  @Patch('complete-profile')
+  async completeProfile(@Request() req, @Body() dto: CompleteProfileDto) {
+    return this.authService.completeProfile(req.user.sub, dto);
   }
 }
