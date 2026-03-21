@@ -51,6 +51,6 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Patch('complete-profile')
   async completeProfile(@Request() req, @Body() dto: CompleteProfileDto) {
-    return this.authService.completeProfile(req.user.sub, dto);
+    return this.authService.completeProfile(req.user.id, dto);
   }
 }
