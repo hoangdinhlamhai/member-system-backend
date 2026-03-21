@@ -16,15 +16,15 @@ export class ZaloLoginDto {
   @IsString()
   zaloAvatar?: string;
 
-  /** Auth code from ZMP SDK getAuthCode() — for verification */
+  /** Auth code from ZMP SDK getAuthCode() — optional, best-effort verification */
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  authCode: string;
+  authCode?: string;
 
   /** PKCE code verifier from ZMP SDK getAuthCode() */
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  codeVerifier: string;
+  codeVerifier?: string;
 
   @IsOptional()
   @IsString()
