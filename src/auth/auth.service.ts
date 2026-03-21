@@ -141,59 +141,49 @@ export class AuthService {
    */
   async completeProfile(memberId: string, dto: CompleteProfileDto) {
     try {
-      const phone = this.normalizePhone(dto.phone);
-
       const currentMember = await this.membersService.findById(memberId);
       if (!currentMember) {
         throw new UnauthorizedException('MEMBER_NOT_FOUND');
       }
 
-      // Check xem SĐT đã có member khác chưa
-      const existingByPhone = await this.prisma.member.findFirst({
-        where: { phone },
-      });
+      let member = currentMember;
 
-      let member;
+      // Cập nhật SĐT nếu có
+      if (dto.phone) {
+        const phone = this.normalizePhone(dto.phone);
 
-      if (existingByPhone && existingByPhone.id !== currentMember.id) {
-        if (existingByPhone.zaloId && !existingByPhone.zaloId.startsWith('phone_')) {
-          throw new UnauthorizedException('PHONE_ALREADY_LINKED');
-        }
+        const existingByPhone = await this.prisma.member.findFirst({
+          where: { phone },
+        });
 
-        // Merge: xóa member Zalo-only mới TRƯỚC (free unique zaloId), rồi update member cũ
-        const zaloId = currentMember.zaloId;
-        const zaloName = currentMember.zaloName;
-        const zaloAvatar = currentMember.zaloAvatar;
+        if (existingByPhone && existingByPhone.id !== currentMember.id) {
+          if (existingByPhone.zaloId && !existingByPhone.zaloId.startsWith('phone_')) {
+            throw new UnauthorizedException('PHONE_ALREADY_LINKED');
+          }
 
-        member = await this.prisma.$transaction(async (tx) => {
-          // 1. Xóa member mới (Zalo-only, chưa có data)
-          await tx.member.delete({ where: { id: currentMember.id } });
+          const zaloId = currentMember.zaloId;
+          const zaloName = currentMember.zaloName;
+          const zaloAvatar = currentMember.zaloAvatar;
 
-          // 2. Update member cũ (phone-login) với Zalo info
-          return tx.member.update({
-            where: { id: existingByPhone.id },
-            data: {
-              zaloId,
-              zaloName,
-              zaloAvatar,
-              lastActiveAt: new Date(),
-              updatedAt: new Date(),
-            },
+          member = await this.prisma.$transaction(async (tx) => {
+            await tx.member.delete({ where: { id: currentMember.id } });
+            return tx.member.update({
+              where: { id: existingByPhone.id },
+              data: {
+                zaloId, zaloName, zaloAvatar,
+                lastActiveAt: new Date(),
+                updatedAt: new Date(),
+              },
+            });
           });
-        });
-
-        this.logger.log(`Merged Zalo member ${currentMember.id} into phone member ${member.id}`);
-      } else {
-        // Chưa có ai dùng SĐT này → cập nhật member hiện tại
-        member = await this.prisma.member.update({
-          where: { id: currentMember.id },
-          data: {
-            phone,
-            lastActiveAt: new Date(),
-            updatedAt: new Date(),
-          },
-        });
-        this.logger.log(`Updated phone for member ${member.id}`);
+          this.logger.log(`Merged Zalo member ${currentMember.id} into phone member ${member.id}`);
+        } else {
+          member = await this.prisma.member.update({
+            where: { id: currentMember.id },
+            data: { phone, lastActiveAt: new Date(), updatedAt: new Date() },
+          });
+          this.logger.log(`Updated phone for member ${member.id}`);
+        }
       }
 
       // Xử lý referral nếu có
@@ -206,7 +196,7 @@ export class AuthService {
         }
       }
 
-      // Tạo JWT mới (member ID có thể thay đổi sau merge)
+      // Tạo JWT mới
       const accessToken = this.jwtService.sign({
         sub: member.id,
         zaloId: member.zaloId,
