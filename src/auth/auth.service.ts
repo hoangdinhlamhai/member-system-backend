@@ -82,7 +82,6 @@ export class AuthService {
           zaloAvatar: dto.zaloAvatar,
         });
         isNewUser = true;
-<<<<<<< HEAD
 
         // Xử lý mã giới thiệu nếu có
         if (dto.refCode) {
@@ -95,9 +94,6 @@ export class AuthService {
         }
 
         this.logger.log(`New Zalo member created: ${member.id}`);
-=======
-        this.logger.log(`New Zalo member created (no phone yet): ${member.id}`);
->>>>>>> 7fea0d54a73523ed5bfa1af6cad7ff269272ae3e
       }
 
       // Step 3: Tạo JWT
@@ -144,7 +140,6 @@ export class AuthService {
    * 3. Xử lý referral nếu có
    */
   async completeProfile(memberId: string, dto: CompleteProfileDto) {
-<<<<<<< HEAD
     try {
       const phone = this.normalizePhone(dto.phone);
 
@@ -238,83 +233,6 @@ export class AuthService {
         detail: error.message,
       });
     }
-=======
-    const phone = this.normalizePhone(dto.phone);
-
-    const currentMember = await this.membersService.findById(memberId);
-    if (!currentMember) {
-      throw new UnauthorizedException('MEMBER_NOT_FOUND');
-    }
-
-    // Check xem SĐT đã có member khác chưa
-    const existingByPhone = await this.prisma.member.findFirst({
-      where: { phone },
-    });
-
-    let member;
-
-    if (existingByPhone && existingByPhone.id !== currentMember.id) {
-      if (existingByPhone.zaloId && !existingByPhone.zaloId.startsWith('phone_')) {
-        throw new UnauthorizedException('PHONE_ALREADY_LINKED');
-      }
-
-      // Merge: chuyển zaloId/name/avatar sang member cũ, xóa member Zalo-only mới
-      member = await this.prisma.member.update({
-        where: { id: existingByPhone.id },
-        data: {
-          zaloId: currentMember.zaloId,
-          zaloName: currentMember.zaloName,
-          zaloAvatar: currentMember.zaloAvatar,
-          lastActiveAt: new Date(),
-          updatedAt: new Date(),
-        },
-      });
-
-      await this.prisma.member.delete({ where: { id: currentMember.id } });
-      this.logger.log(`Merged Zalo member ${currentMember.id} into phone member ${member.id}`);
-    } else {
-      // Chưa có ai dùng SĐT này → cập nhật member hiện tại
-      member = await this.prisma.member.update({
-        where: { id: currentMember.id },
-        data: {
-          phone,
-          lastActiveAt: new Date(),
-          updatedAt: new Date(),
-        },
-      });
-      this.logger.log(`Updated phone for member ${member.id}`);
-    }
-
-    // Xử lý referral nếu có
-    if (dto.refCode) {
-      try {
-        await this.referralsService.processReferral(dto.refCode, member.id);
-        this.logger.log(`Referral processed: ${dto.refCode} for ${member.id}`);
-      } catch (refErr) {
-        this.logger.warn(`Referral failed (non-critical): ${refErr.message}`);
-      }
-    }
-
-    // Tạo JWT mới (member ID có thể thay đổi sau merge)
-    const accessToken = this.jwtService.sign({
-      sub: member.id,
-      zaloId: member.zaloId,
-      phone: member.phone,
-      type: 'member',
-    });
-
-    return {
-      accessToken,
-      member: {
-        id: member.id,
-        zaloId: member.zaloId,
-        zaloName: member.zaloName,
-        zaloAvatar: member.zaloAvatar,
-        phone: member.phone,
-        points: member.pointsBalance ?? 0,
-      },
-    };
->>>>>>> 7fea0d54a73523ed5bfa1af6cad7ff269272ae3e
   }
 
   /**
