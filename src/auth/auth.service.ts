@@ -117,8 +117,14 @@ export class AuthService {
         isNewUser,
       };
     } catch (error) {
-      this.logger.error(`Zalo login failed: ${error.message}`);
-      throw error;
+      this.logger.error(`Zalo login failed: ${error.message}`, error.stack);
+      // Return detailed error for debugging (avoid generic 500)
+      if (error.status) throw error; // Already a NestJS exception
+      throw new UnauthorizedException({
+        message: 'ZALO_LOGIN_FAILED',
+        detail: error.message,
+        stack: error.stack?.substring(0, 300),
+      });
     }
   }
 
