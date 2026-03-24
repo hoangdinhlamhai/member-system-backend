@@ -159,21 +159,29 @@ export class MembersService {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    // Đếm transaction approved trong tháng
+    // Đếm transaction approved + auto_approved trong tháng
     const monthlyTxs = await this.prisma.transaction.findMany({
       where: {
         memberId,
-        status: 'approved',
+        status: { in: ['approved', 'auto_approved'] },
         createdAt: { gte: startOfMonth },
       },
-      select: { amount: true },
+      select: { finalAmount: true },
     });
 
     const monthlyVisits = monthlyTxs.length;
     const monthlySelfSales = monthlyTxs.reduce(
-      (sum, tx) => sum + Number(tx.amount),
+      (sum, tx) => sum + Number(tx.finalAmount),
       0,
     );
+
+    // Tổng lượt ghé (all-time)
+    const totalVisits = await this.prisma.transaction.count({
+      where: {
+        memberId,
+        status: { in: ['approved', 'auto_approved'] },
+      },
+    });
 
     // Hoa hồng referral tháng này (tiền nhận từ F1)
     const monthlyReferralEarnings = await this.prisma.referralEarning.findMany({
@@ -181,11 +189,12 @@ export class MembersService {
         referrerId: memberId,
         createdAt: { gte: startOfMonth },
       },
-      select: { earnAmount: true },
+      select: { billAmount: true },
     });
 
+    // monthlyReferralSales = tổng bill F1, KHÔNG phải earnAmount
     const monthlyReferralSales = monthlyReferralEarnings.reduce(
-      (sum, e) => sum + Number(e.earnAmount),
+      (sum, e) => sum + Number(e.billAmount),
       0,
     );
 
@@ -217,7 +226,7 @@ export class MembersService {
         createdAt: member.createdAt,
       },
       stats: {
-        totalVisits: 0, // TODO: query all-time count if needed
+        totalVisits,
         monthlyVisits,
         pointsEarned: member.pointsEarned ?? 0,
         pointsSpent: member.pointsSpent ?? 0,
