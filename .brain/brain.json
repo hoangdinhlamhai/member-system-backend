@@ -2,7 +2,7 @@
   "meta": {
     "schema_version": "1.1.0",
     "awf_version": "4.0.2",
-    "last_updated": "2026-03-21T10:55:00+07:00"
+    "last_updated": "2026-03-22T00:10:00+07:00"
   },
   "project": {
     "name": "Zô Dứt Cạn - Backend",
@@ -55,9 +55,10 @@
     "relationships_explained": "1 Brand có nhiều Branch. 1 Branch có nhiều Staff & Transaction. 1 Member có nhiều Transaction, PointTransaction, TierHistory, Redemption. 1 Member giới thiệu nhiều Member (referral). Mỗi Transaction có thể generate ReferralEarning cho referrer. RewardCatalog → Redemption (đổi quà). DiscountTier → Redemption (giảm giá)."
   },
   "api_endpoints": [
-    { "group": "Auth", "method": "POST", "path": "/auth/zalo-login", "explained": "Đăng nhập Zalo. Nhận zaloId+zaloName+zaloAvatar (from ZMA getUserInfo) + authCode+codeVerifier (verification) → exchangeAuthCode → find/create member → JWT. Không cần graph.zalo.me!" },
+    { "group": "Auth", "method": "POST", "path": "/auth/zalo-login", "explained": "Đăng nhập Zalo. Nhận zaloId+zaloName+zaloAvatar (from ZMA getUserInfo) + authCode+codeVerifier (verification) + refCode (optional) → exchangeAuthCode → find/create member → process referral → JWT. isNewUser flag for redirect." },
     { "group": "Auth", "method": "POST", "path": "/auth/phone-login", "explained": "Đăng nhập bằng SĐT — tự tạo member nếu chưa có, trả JWT." },
     { "group": "Auth", "method": "POST", "path": "/auth/admin-login", "explained": "Đăng nhập Admin Web — phone + password (bcrypt), chỉ role admin/store_manager. Trả JWT + staff info." },
+    { "group": "Auth", "method": "PATCH", "path": "/auth/complete-profile", "explained": "Cập nhật profile: phone (optional) hoặc refCode (optional). Phone → merge member nếu trùng SĐT. RefCode → processReferral. JWT required (req.user.id). Trả accessToken + member mới." },
     { "group": "Auth", "method": "GET", "path": "/auth/me", "explained": "Thông tin user hiện tại từ JWT." },
     { "group": "Members (ZMA)", "method": "GET", "path": "/api/v1/members/me/dashboard", "explained": "Dashboard: profile, tier, themeConfig, monthly stats." },
     { "group": "Members (ZMA)", "method": "GET", "path": "/api/v1/members/me/timeline", "explained": "Timeline xen kẽ bill + referral earnings." },
@@ -95,10 +96,14 @@
     "Voucher code format: ZDC-V-XXXXXXXX (nanoid 8 chars), hết hạn sau 30 ngày",
     "Discount tiers: 5%(20pts,max25K), 10%(40pts,max50K), 15%(70pts,max100K), 20%(120pts,max200K)",
     "Admin login: chỉ role admin/store_manager, bcrypt password, JWT response",
-    "Zalo Login: ZMA getUserInfo() (client-side, trả trực tiếp zaloId/name/avatar) + getAuthCode() → backend exchangeAuthCode (verification only) → find/create member. KHÔNG cần graph.zalo.me!"
+    "Zalo Login: ZMA getUserInfo() (client-side, trả trực tiếp zaloId/name/avatar) + getAuthCode() → backend exchangeAuthCode (verification only) → find/create member. KHÔNG cần graph.zalo.me!",
+    "Complete Profile: phone is OPTIONAL. Endpoint handles refCode-only (new user) hoặc phone-only (from dashboard) hoặc cả hai",
+    "Phone merge logic: nếu SĐT đã có member phone-login (zaloId starts with 'phone_') → DELETE Zalo member TRƯỚC (free unique zaloId) → UPDATE phone member với Zalo info. Dùng $transaction atomic.",
+    "Zalo login new user flow: ZMA getUserInfo → backend create member (no phone) → return isNewUser=true → redirect /complete-profile (refCode only) → skip or enter → dashboard",
+    "Add phone flow: Dashboard card '+ Thêm SĐT' → /add-phone page → PATCH /auth/complete-profile {phone} → merge or update → back to dashboard"
   ],
   "modules": [
-    { "name": "AuthModule", "files": ["auth/"], "notes": "zalo-login (OAuth v4), phone-login (ZMA fallback), admin-login (Web Admin bcrypt)" },
+    { "name": "AuthModule", "files": ["auth/"], "notes": "zalo-login (OAuth v4 + refCode), phone-login, admin-login (bcrypt), complete-profile (phone+refCode optional, merge logic)" },
     { "name": "MembersModule", "files": ["members/"], "notes": "Public API cho ZMA + rewards/discount-tiers/vouchers + POST /redeem" },
     { "name": "TransactionsModule", "files": ["transactions/"] },
     { "name": "ReferralsModule", "files": ["referrals/"] },
@@ -140,7 +145,11 @@
       "ZMP SDK getUserInfo({autoRequestPermission:true}) trả {id, name, avatar} trực tiếp — KHÔNG cần server giải mã",
       "ZMP SDK getPhoneNumber() trả token mã hóa — CẦN server giải mã qua graph.zalo.me → vẫn bị chặn IP. Nên dùng zaloId thay vì phone.",
       "ZMP SDK getAuthCode() trả {authCode, authCodeVerify} — authCodeVerify chính là code_verifier cho PKCE",
-      "Coolify on DigitalOcean Singapore: SSL Let's Encrypt có thể chưa provision + container 502 Bad Gateway nếu app chưa chạy"
+      "Coolify on DigitalOcean Singapore: SSL Let's Encrypt có thể chưa provision + container 502 Bad Gateway nếu app chưa chạy",
+      "JWT Strategy validate() trả req.user = { id, ...member, userType }. Controller phải dùng req.user.id, KHÔNG PHẢI req.user.sub (sub chỉ có trong JWT payload raw, không trong req.user)",
+      "completeProfile merge order: PHẢI DELETE new member TRƯỚC (free unique zaloId), rồi UPDATE old member. Ngược lại → unique constraint violation!",
+      "ZMP Router navigate() KHÔNG hỗ trợ query params (?mode=phone). Dùng route riêng thay vì URL params.",
+      "git commit --amend sau khi đã push → conflict khi pull. Chỉ amend TRƯỚC khi push!"
     ]
   },
   "seed_data": {

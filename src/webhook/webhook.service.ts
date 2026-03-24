@@ -125,14 +125,27 @@ export class WebhookService {
       // ─── 5. Kiểm tra & Thăng hạng thẻ (Tier Promotion) ───
       const tierPromotion = await this.checkAndUpgradeTier(tx, member.id, member.phone || '');
 
-      // ─── 6. Referral Engine (5% hoa hồng) ───
-      const referralResult = await this.processReferralEngine(
-        tx,
-        member,
-        newTx.id,
-        finalAmount,
-        invoice.code || invoice.id.slice(0, 8),
-      );
+      // ─── 6. Referral Engine (5% hoa hồng) — chỉ bill >= 100k ───
+      const MIN_BILL_FOR_REFERRAL = BigInt(100_000); // 100k VND
+      let referralResult: { referrerId: string; earnAmount: number; pointsAwarded: number } | null = null;
+
+      if (member.referredById) {
+        if (finalAmount < MIN_BILL_FOR_REFERRAL) {
+          this.logger.log(
+            `[Referral] Bill ${finalAmount}đ < ${MIN_BILL_FOR_REFERRAL}đ, skip referral (keep pending)`,
+          );
+        } else {
+          // Activate referral + tính hoa hồng chỉ khi bill >= 100k
+          await this.activateReferralIfPending(tx, member.referredById, member.id);
+          referralResult = await this.processReferralEngine(
+            tx,
+            member,
+            newTx.id,
+            finalAmount,
+            invoice.code || invoice.id.slice(0, 8),
+          );
+        }
+      }
 
       // TODO: sendZNS cho Referrer (báo nảy điểm)
       // Payload: "Bạn nhận được {points} điểm hoa hồng từ {refereeName}"
@@ -230,6 +243,29 @@ export class WebhookService {
   }
 
   // ═══════════════════════════════════════════════════
+  // PRIVATE: Activate referral (pending → active)
+  // ═══════════════════════════════════════════════════
+
+  private async activateReferralIfPending(tx: any, referrerId: string, refereeId: string) {
+    const referral = await tx.referral.findFirst({
+      where: { referrerId, refereeId },
+    });
+
+    if (referral && referral.status === 'pending') {
+      await tx.referral.update({
+        where: { id: referral.id },
+        data: {
+          status: 'active',
+          activatedAt: new Date(),
+        },
+      });
+      this.logger.log(
+        `[Referral] Activated referral ${referral.id} (${referrerId} → ${refereeId})`,
+      );
+    }
+  }
+
+  // ═══════════════════════════════════════════════════
   // PRIVATE: Referral Engine (5% ngang hàng)
   // ═══════════════════════════════════════════════════
 
@@ -253,20 +289,6 @@ export class WebhookService {
     });
 
     if (!referral) return null;
-
-    // Activate nếu đang pending
-    if (referral.status === 'pending') {
-      await tx.referral.update({
-        where: { id: referral.id },
-        data: {
-          status: 'active',
-          activatedAt: new Date(),
-        },
-      });
-      this.logger.log(
-        `[Referral] Activated referral ${referral.id} (${referrerId} → ${member.id})`,
-      );
-    }
 
     // Tính 5%
     const REFERRAL_PERCENT = 5;

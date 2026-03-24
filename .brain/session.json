@@ -1,73 +1,80 @@
 {
-  "updated_at": "2026-03-21T01:20:00+07:00",
+  "updated_at": "2026-03-22T00:10:00+07:00",
   "working_on": {
-    "feature": "Zalo OAuth Login (Social API v4)",
-    "task": "Debug graph.zalo.me IP restriction — need exact zaloDetail error",
-    "status": "debugging",
+    "feature": "Zalo Login Flow + Complete Profile + Phone Update",
+    "task": "All done — Deploy & test",
+    "status": "completed",
     "files": [
-      "BE: src/zalo/zalo.service.ts (exchangeAuthCode + getUserInfo)",
-      "BE: src/auth/auth.service.ts (zaloLogin v4 flow)",
-      "BE: src/auth/auth.controller.ts (clean, no debug endpoint)",
-      "BE: src/auth/dto/zalo-login.dto.ts (authCode + codeVerifier)",
-      "ZMA: src/services/zalo-auth.ts (getAuthCode flow)",
-      "ZMA: src/stores/auth.ts (zaloLoginActionAtom v4)",
-      "ZMA: src/pages/login.tsx (debug logging active)"
+      "BE: src/auth/auth.service.ts (zaloLogin + completeProfile refactored)",
+      "BE: src/auth/auth.controller.ts (complete-profile endpoint, fixed req.user.id)",
+      "BE: src/auth/dto/complete-profile.dto.ts (phone optional)",
+      "ZMA: src/pages/login.tsx (Zalo → new user → /complete-profile, else → /dashboard)",
+      "ZMA: src/pages/complete-profile.tsx (referral code only)",
+      "ZMA: src/pages/add-phone.tsx (phone update from dashboard)",
+      "ZMA: src/pages/dashboard.tsx (personal info card + add phone button)",
+      "ZMA: src/components/layout.tsx (added /add-phone route)"
     ],
-    "blockers": [
-      "graph.zalo.me/v2.0/me CHẶN IP ngoài Việt Nam — cả Vercel US và DigitalOcean Singapore đều bị",
-      "exchangeAuthCode() qua oauth.zaloapp.com THÀNH CÔNG (không chặn IP)",
-      "getUserInfo() qua graph.zalo.me THẤT BẠI (chặn IP)",
-      "Đang chờ zaloDetail error từ frontend debug log"
-    ],
-    "notes": "Backend đã push + Vercel deployed. ZMA đã deploy với debug logging. Chờ user test lại để xem exact zaloDetail."
+    "blockers": [],
+    "notes": "All features working. Ready for deploy + testing."
   },
   "pending_tasks": [
-    { "task": "Fix Zalo getUserInfo IP restriction", "priority": "critical", "notes": "Options: (A) getUserInfo() on frontend via ZMP SDK → send to backend, (B) VPS Việt Nam, (C) Skip phone → Zalo ID only login. Recommend Option A." },
-    { "task": "Remove debug code from ZMA login.tsx after fixing", "priority": "high", "notes": "handleZaloLogin has alert() + detailed debug logging — must remove before production" },
-    { "task": "Fix Coolify VPS: SSL + 502 Bad Gateway", "priority": "medium", "notes": "zo-dut-can-be.duckdns.org on DigitalOcean 157.245.156.189. Let's Encrypt not provisioned, container not running." },
-    { "task": "Update ZMA .env VITE_API_URL to VPS when ready", "priority": "medium", "notes": "Currently pointing to Vercel" },
-    { "task": "Test login page trên Web Admin (http://localhost:3001/login)", "priority": "high", "notes": "Account: 0123456789 / 123456" },
-    { "task": "Implement ZNS notifications (thăng hạng, hoa hồng, bill)", "priority": "high", "notes": "TODO comments đã để sẵn" },
-    { "task": "Admin: Fraud page + Webhook page", "priority": "medium", "notes": "2 trang admin chưa implement" },
-    { "task": "Monthly spending reset (cron job đầu tháng)", "priority": "medium", "notes": "" },
-    { "task": "Web Admin: Sidebar logout button", "priority": "low", "notes": "" }
+    { "task": "Deploy backend + ZMA and test full flow", "priority": "high", "notes": "git commit + push (backend had merge conflict, now resolved)" },
+    { "task": "Fix Coolify VPS: SSL + 502 Bad Gateway", "priority": "medium", "notes": "zo-dut-can-be.duckdns.org on DigitalOcean 157.245.156.189" },
+    { "task": "Test login page Web Admin (localhost:3001/login)", "priority": "medium", "notes": "Account: 0123456789 / 123456" },
+    { "task": "Implement ZNS notifications", "priority": "high", "notes": "Sprint 3" },
+    { "task": "Monthly spending reset (cron job)", "priority": "medium", "notes": "" },
+    { "task": "Points expiry cron (12 tháng)", "priority": "medium", "notes": "" },
+    { "task": "Admin: Fraud page + Webhook page", "priority": "medium", "notes": "" }
   ],
   "recent_changes": [
     {
-      "timestamp": "2026-03-21T01:20:00+07:00",
-      "type": "refactor",
-      "description": "Refactored Zalo OAuth from Mini App token flow to Social API v4 (authCode + PKCE). ZaloService: exchangeAuthCode() + getUserInfo(). DTO: authCode+codeVerifier. ZMA: getAuthCode() instead of getAccessToken()+getPhoneNumber(). exchangeAuthCode works, getUserInfo still blocked by IP.",
-      "files": ["BE: zalo/zalo.service.ts, auth/auth.service.ts, auth.controller.ts, dto/zalo-login.dto.ts", "ZMA: services/zalo-auth.ts, stores/auth.ts, pages/login.tsx"]
+      "timestamp": "2026-03-21T23:49:00+07:00",
+      "type": "docs",
+      "description": "Updated implementation-plan.md: Sprint progress ~55%, Zalo OAuth marked DONE, added new features to completed list, detailed actual OAuth flow with IP restriction explanation",
+      "files": ["BE: docs/implementation-plan.md"]
     },
     {
-      "timestamp": "2026-03-20T20:25:00+07:00",
-      "type": "debug",
-      "description": "Tested Coolify VPS (zo-dut-can-be.duckdns.org): SSL untrusted (Let's Encrypt not provisioned) + 502 Bad Gateway (container not running). Port 443/80 reachable on 157.245.156.189.",
-      "files": []
-    },
-    {
-      "timestamp": "2026-03-20T17:13:00+07:00",
-      "type": "debug",
-      "description": "Debug endpoint revealed: graph.zalo.me blocks non-Vietnam IPs. Vercel IP 50.19.136.196 (US) → error -501: 'Personal information is limited due to IP address not inside Vietnam'. appsecret_proof was correct.",
-      "files": ["BE: auth/auth.controller.ts (debug-zalo endpoint, later removed)"]
-    },
-    {
-      "timestamp": "2026-03-20T16:00:00+07:00",
+      "timestamp": "2026-03-21T23:25:00+07:00",
       "type": "feature",
-      "description": "Initial Zalo OAuth implementation: ZaloService (verifyAccessToken + decryptPhoneNumber with appsecret_proof), AuthService.zaloLogin, ZMA login page redesign (Zalo primary, phone fallback), zalo-auth.ts service, zaloLoginActionAtom.",
-      "files": ["BE: zalo/zalo.service.ts, auth/*.ts", "ZMA: services/zalo-auth.ts, stores/auth.ts, pages/login.tsx"]
+      "description": "Split complete-profile into 2 pages: /complete-profile (refCode only for new users) + /add-phone (SĐT update from dashboard). Added route in layout.tsx.",
+      "files": ["ZMA: pages/add-phone.tsx (NEW)", "ZMA: pages/complete-profile.tsx (simplified)", "ZMA: components/layout.tsx", "ZMA: pages/dashboard.tsx"]
+    },
+    {
+      "timestamp": "2026-03-21T23:08:00+07:00",
+      "type": "bugfix",
+      "description": "Fixed merge conflict in auth.service.ts caused by accidental git commit --amend. Resolved both conflict blocks (zaloLogin refCode + completeProfile $transaction).",
+      "files": ["BE: src/auth/auth.service.ts"]
+    },
+    {
+      "timestamp": "2026-03-21T17:43:00+07:00",
+      "type": "bugfix",
+      "description": "Fixed completeProfile merge logic: unique constraint violation on zaloId. Changed order to DELETE new member FIRST (free zaloId), THEN update old member. Wrapped in Prisma $transaction for atomicity.",
+      "files": ["BE: src/auth/auth.service.ts"]
+    },
+    {
+      "timestamp": "2026-03-21T23:33:00+07:00",
+      "type": "bugfix",
+      "description": "Fixed 401 error on PATCH /auth/complete-profile: JWT strategy returns req.user.id (not req.user.sub). Controller was using req.user.sub → undefined → Prisma findUnique failed.",
+      "files": ["BE: src/auth/auth.controller.ts"]
+    },
+    {
+      "timestamp": "2026-03-21T10:00:00+07:00",
+      "type": "feature",
+      "description": "Implemented full Zalo login flow: ZMA getUserInfo() → backend find/create member → JWT. Dashboard personal info card with + Add Phone button. Complete profile page for refCode.",
+      "files": ["BE: auth/auth.service.ts, auth.controller.ts, dto/complete-profile.dto.ts", "ZMA: pages/login.tsx, pages/complete-profile.tsx, pages/dashboard.tsx, components/layout.tsx"]
     }
   ],
   "errors_encountered": [
-    { "error": "Zalo graph.zalo.me error -501: Personal information is limited due to IP address not inside Vietnam: 50.19.136.196", "solution": "Vercel server is in US. Need Vietnam VPS or alternative approach (getUserInfo on frontend). Tried Social API v4 — exchangeAuthCode works but getUserInfo via graph.zalo.me still blocked.", "resolved": false },
-    { "error": "Zalo SDK authorize rejected by user (code -201)", "solution": "User clicked negative button on permission popup. Normal behavior — user must accept permissions.", "resolved": true },
-    { "error": "Coolify VPS SSL untrusted + 502 Bad Gateway", "solution": "Let's Encrypt not provisioned yet. Container not running (likely missing env vars). Need to check Coolify deployment logs.", "resolved": false },
-    { "error": "Typo in variable name: appsecretProof vs appSecretProof", "solution": "Fixed casing to appSecretProof", "resolved": true }
+    { "error": "completeProfile 500: unique constraint violation on zaloId during merge", "solution": "Must DELETE new member FIRST to free zaloId, THEN update old member. Use $transaction.", "resolved": true },
+    { "error": "completeProfile 401: COMPLETE_PROFILE_FAILED - prisma.member.findUnique id: undefined", "solution": "JWT strategy returns req.user.id (from member spread), NOT req.user.sub. Changed controller to use req.user.id.", "resolved": true },
+    { "error": "Git merge conflict after commit --amend on already-pushed commit", "solution": "Resolved merge conflicts manually, committed fresh. Lesson: don't amend after push.", "resolved": true },
+    { "error": "Zalo graph.zalo.me error -501: IP restriction", "solution": "RESOLVED: ZMA getUserInfo() client-side bypass. Backend only uses oauth.zaloapp.com.", "resolved": true }
   ],
   "decisions_made": [
-    { "decision": "Switch from Mini App token flow to Social API v4 (authCode + PKCE)", "reason": "Attempt to bypass IP restriction. oauth.zaloapp.com NOT blocked (works), but graph.zalo.me STILL blocked." },
-    { "decision": "ZALO_APP_ID = Zalo App cha (4243775393589850681), ZMA APP_ID = Mini App con (1756817649065317309)", "reason": "App Secret belongs to parent Zalo App, not Mini App. Different IDs for different contexts." },
-    { "decision": "Considered 3 options for IP issue: (A) getUserInfo on frontend, (B) VPS Việt Nam, (C) Zalo ID-only login", "reason": "User cannot find Vietnam VPS. Option A (frontend getUserInfo) is most practical next step." },
-    { "decision": "Coolify on DigitalOcean Singapore as alternative hosting", "reason": "User already has this setup. But Singapore IP may also be blocked by Zalo." }
+    { "decision": "Zalo login → NO phone collection at login time", "reason": "getPhoneNumber() requires Vietnam server. User adds phone later from dashboard." },
+    { "decision": "New user redirect to /complete-profile for refCode only", "reason": "User wanted refCode input for new members, but skip phone" },
+    { "decision": "Separate /add-phone page instead of URL params", "reason": "ZMP Router doesn't properly support query params in navigate(). Dedicated route is cleaner." },
+    { "decision": "CompleteProfileDto: phone is now optional", "reason": "Endpoint handles both refCode-only (from login) and phone-only (from dashboard) cases" },
+    { "decision": "Merge logic: DELETE first, UPDATE second in $transaction", "reason": "Prevents unique constraint violation on zaloId. Atomic ensures both succeed or both rollback." }
   ]
 }

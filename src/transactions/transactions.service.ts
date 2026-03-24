@@ -229,7 +229,8 @@ export class TransactionsService {
         // Ví dụ: "Chúc mừng lên hạng Bạc! Tích điểm x1.2"
       }
 
-      // ─── 3. Referral Engine (5% ngang hàng) ───
+      // ─── 3. Referral Engine (5% ngang hàng) — chỉ bill >= 100k ───
+      const MIN_BILL_FOR_REFERRAL = BigInt(100_000); // 100k VND
       let referralResult: {
         referrerId: string;
         earnAmount: bigint;
@@ -248,85 +249,92 @@ export class TransactionsService {
         });
 
         if (referral) {
-          // 3a. Activate referral nếu đang pending
-          if (referral.status === 'pending') {
-            await tx.referral.update({
-              where: { id: referral.id },
-              data: {
-                status: 'active',
-                activatedAt: new Date(),
-              },
-            });
+          // Chỉ activate + tính hoa hồng khi bill >= 100k
+          if (billAmount < MIN_BILL_FOR_REFERRAL) {
             this.logger.log(
-              `[Referral] Activated referral ${referral.id} (${referrerId} → ${member.id})`,
+              `[Referral] Bill ${billAmount}đ < ${MIN_BILL_FOR_REFERRAL}đ, skip referral (keep pending)`,
             );
-          }
+          } else {
+            // 3a. Activate referral nếu đang pending
+            if (referral.status === 'pending') {
+              await tx.referral.update({
+                where: { id: referral.id },
+                data: {
+                  status: 'active',
+                  activatedAt: new Date(),
+                },
+              });
+              this.logger.log(
+                `[Referral] Activated referral ${referral.id} (${referrerId} → ${member.id})`,
+              );
+            }
 
-          // 3b. Tính toán 5%
-          const REFERRAL_PERCENT = 5;
-          const earnAmount = (billAmount * BigInt(REFERRAL_PERCENT)) / BigInt(100);
-          const pointsAwarded = Number(earnAmount / BigInt(1000)); // 1000đ = 1 điểm
+            // 3b. Tính toán 5%
+            const REFERRAL_PERCENT = 5;
+            const earnAmount = (billAmount * BigInt(REFERRAL_PERCENT)) / BigInt(100);
+            const pointsAwarded = Number(earnAmount / BigInt(1000)); // 1000đ = 1 điểm
 
-          if (pointsAwarded > 0) {
-            // 3c. Cập nhật points cho người giới thiệu (referrer)
-            const updatedReferrer = await tx.member.update({
-              where: { id: referrerId },
-              data: {
-                pointsBalance: { increment: pointsAwarded },
-                pointsEarned: { increment: pointsAwarded },
-              },
-            });
+            if (pointsAwarded > 0) {
+              // 3c. Cập nhật points cho người giới thiệu (referrer)
+              const updatedReferrer = await tx.member.update({
+                where: { id: referrerId },
+                data: {
+                  pointsBalance: { increment: pointsAwarded },
+                  pointsEarned: { increment: pointsAwarded },
+                },
+              });
 
-            // 3d. Cập nhật referral record: totalBills, totalBillAmount, totalEarned
-            await tx.referral.update({
-              where: { id: referral.id },
-              data: {
-                totalBills: { increment: 1 },
-                totalBillAmount: { increment: billAmount },
-                totalEarned: { increment: earnAmount },
-              },
-            });
+              // 3d. Cập nhật referral record
+              await tx.referral.update({
+                where: { id: referral.id },
+                data: {
+                  totalBills: { increment: 1 },
+                  totalBillAmount: { increment: billAmount },
+                  totalEarned: { increment: earnAmount },
+                },
+              });
 
-            // 3e. Tạo referral_earnings record (lưu chi tiết hoa hồng bill này)
-            await tx.referralEarning.create({
-              data: {
-                referralId: referral.id,
-                referrerId: referrerId,
-                refereeId: member.id,
-                transactionId: transactionId,
-                billAmount: billAmount,
-                earnPercent: REFERRAL_PERCENT,
-                earnAmount: earnAmount,
-                pointsAwarded: pointsAwarded,
-              },
-            });
+              // 3e. Tạo referral_earnings record
+              await tx.referralEarning.create({
+                data: {
+                  referralId: referral.id,
+                  referrerId: referrerId,
+                  refereeId: member.id,
+                  transactionId: transactionId,
+                  billAmount: billAmount,
+                  earnPercent: REFERRAL_PERCENT,
+                  earnAmount: earnAmount,
+                  pointsAwarded: pointsAwarded,
+                },
+              });
 
-            // 3f. Tạo point_transactions cho referrer (lịch sử điểm)
-            const memberDisplayName =
-              member.fullName || member.zaloName || member.phone || 'Khách';
-            const billCodeDisplay = transaction.posBillCode || transactionId.slice(0, 8);
+              // 3f. Tạo point_transactions cho referrer
+              const memberDisplayName =
+                member.fullName || member.zaloName || member.phone || 'Khách';
+              const billCodeDisplay = transaction.posBillCode || transactionId.slice(0, 8);
 
-            await tx.pointTransaction.create({
-              data: {
-                memberId: referrerId,
-                type: 'referral_earning',
-                points: pointsAwarded,
-                balanceAfter: updatedReferrer.pointsBalance ?? pointsAwarded,
-                referenceType: 'referral_earning',
-                referenceId: referral.id,
-                note: `Hoa hồng 5% bill ${billCodeDisplay} từ ${memberDisplayName}`,
-              },
-            });
+              await tx.pointTransaction.create({
+                data: {
+                  memberId: referrerId,
+                  type: 'referral_earning',
+                  points: pointsAwarded,
+                  balanceAfter: updatedReferrer.pointsBalance ?? pointsAwarded,
+                  referenceType: 'referral_earning',
+                  referenceId: referral.id,
+                  note: `Hoa hồng 5% bill ${billCodeDisplay} từ ${memberDisplayName}`,
+                },
+              });
 
-            referralResult = {
-              referrerId,
-              earnAmount,
-              pointsAwarded,
-            };
+              referralResult = {
+                referrerId,
+                earnAmount,
+                pointsAwarded,
+              };
 
-            this.logger.log(
-              `[Referral] Referrer ${referrerId}: +${pointsAwarded} points (5% of ${billAmount} = ${earnAmount}đ)`,
-            );
+              this.logger.log(
+                `[Referral] Referrer ${referrerId}: +${pointsAwarded} points (5% of ${billAmount} = ${earnAmount}đ)`,
+              );
+            }
           }
         }
       }
