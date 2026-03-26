@@ -67,18 +67,19 @@ export class WebhookController {
   @HttpCode(HttpStatus.OK)
   handleZaloOaWebhook(@Body() body: any) {
     const eventName = body?.event_name;
-    const senderId = body?.sender?.id;
+    const senderOaId = body?.sender?.id;        // OA-scoped ID → dùng để reply
+    const userIdByApp = body?.user_id_by_app;   // App-scoped ID → khớp zaloId trong DB
     const messageText = body?.message?.text;
 
     this.logger.log(
-      `[ZaloOA] Webhook: event=${eventName || 'unknown'} | sender=${senderId || 'N/A'}`,
+      `[ZaloOA] Webhook: event=${eventName || 'unknown'} | sender=${senderOaId || 'N/A'} | appUser=${userIdByApp || 'N/A'}`,
     );
 
     // Chỉ xử lý sự kiện user gửi tin nhắn text
-    if (eventName === 'user_send_text' && senderId && messageText) {
+    if (eventName === 'user_send_text' && senderOaId && messageText) {
       // Fire-and-forget: KHÔNG await → trả 200 ngay cho Zalo
       this.zaloOaChatbotService
-        .handleUserSendText(senderId, messageText)
+        .handleUserSendText(senderOaId, userIdByApp, messageText)
         .catch((err) => {
           this.logger.error(`[ZaloOA] Async handler error: ${err.message}`, err.stack);
         });

@@ -22,9 +22,12 @@ export class ZaloOaChatbotService {
 
   /**
    * Xử lý bất đồng bộ tin nhắn user_send_text từ Zalo OA webhook.
-   * Được gọi fire-and-forget từ controller (không await).
+   * 
+   * @param senderOaId - OA-scoped user ID (dùng để gửi reply qua OA API)
+   * @param userIdByApp - App-scoped user ID (khớp zaloId trong DB)
+   * @param messageText - Nội dung tin nhắn
    */
-  async handleUserSendText(senderZaloId: string, messageText: string): Promise<void> {
+  async handleUserSendText(senderOaId: string, userIdByApp: string | undefined, messageText: string): Promise<void> {
     try {
       // 1. Check keyword match
       const lowerText = messageText.toLowerCase();
@@ -35,16 +38,18 @@ export class ZaloOaChatbotService {
         return;
       }
 
-      this.logger.log(`[ZaloOA] Keyword matched! sender=${senderZaloId}, text="${messageText}"`);
+      this.logger.log(`[ZaloOA] Keyword matched! oaUser=${senderOaId}, appUser=${userIdByApp}, text="${messageText}"`);
 
-      // 2. Query member by zaloId
+      // 2. Query member by zaloId (user_id_by_app khớp với zaloId trong DB)
+      // Fallback: thử senderOaId nếu không có userIdByApp
+      const lookupId = userIdByApp || senderOaId;
       const member = await this.prisma.member.findUnique({
-        where: { zaloId: senderZaloId },
+        where: { zaloId: lookupId },
       });
 
       if (!member) {
         await this.sendTextMessage(
-          senderZaloId,
+          senderOaId,
           '❌ Xin lỗi, hệ thống không tìm thấy tài khoản của bạn. Vui lòng đăng ký thành viên qua Zalo Mini App trước nhé!',
         );
         return;
@@ -131,11 +136,11 @@ export class ZaloOaChatbotService {
       replyText += `📱 Xem chi tiết trên Zô Dứt Cạn Mini App`;
 
       // 7. Gửi tin nhắn qua Zalo OA API
-      await this.sendTextMessage(senderZaloId, replyText);
+      await this.sendTextMessage(senderOaId, replyText);
 
     } catch (error) {
       this.logger.error(
-        `[ZaloOA] Failed to handle message from ${senderZaloId}: ${error.message}`,
+        `[ZaloOA] Failed to handle message from ${senderOaId}: ${error.message}`,
         error.stack,
       );
     }
