@@ -60,27 +60,25 @@ export class WebhookController {
    * POST /api/v1/webhook/zalo-oa
    *
    * Endpoint hứng webhook từ Zalo Official Account.
-   * Zalo gửi sự kiện khi user nhắn tin cho OA.
-   *
-   * Luồng:
-   * 1. Trả 200 OK NGAY LẬP TỨC (Zalo yêu cầu response nhanh)
-   * 2. Fire-and-forget: Xử lý logic chatbot bất đồng bộ
-   *    - Check keyword (doanh số, điểm...)
-   *    - Query DB realtime (member, referrals)
-   *    - Gửi tin nhắn trả lời qua Zalo OA CS API
+   * KHÔNG dùng DTO validation — webhook phải luôn trả 200 OK
+   * (kể cả khi Zalo gửi verification request hoặc event lạ).
    */
   @Post('zalo-oa')
   @HttpCode(HttpStatus.OK)
-  handleZaloOaWebhook(@Body() dto: ZaloOaWebhookDto) {
+  handleZaloOaWebhook(@Body() body: any) {
+    const eventName = body?.event_name;
+    const senderId = body?.sender?.id;
+    const messageText = body?.message?.text;
+
     this.logger.log(
-      `[ZaloOA] Webhook: event=${dto.event_name} | sender=${dto.sender?.id || 'N/A'}`,
+      `[ZaloOA] Webhook: event=${eventName || 'unknown'} | sender=${senderId || 'N/A'}`,
     );
 
     // Chỉ xử lý sự kiện user gửi tin nhắn text
-    if (dto.event_name === 'user_send_text' && dto.sender?.id && dto.message?.text) {
+    if (eventName === 'user_send_text' && senderId && messageText) {
       // Fire-and-forget: KHÔNG await → trả 200 ngay cho Zalo
       this.zaloOaChatbotService
-        .handleUserSendText(dto.sender.id, dto.message.text)
+        .handleUserSendText(senderId, messageText)
         .catch((err) => {
           this.logger.error(`[ZaloOA] Async handler error: ${err.message}`, err.stack);
         });
@@ -89,3 +87,4 @@ export class WebhookController {
     return { error: 0, message: 'OK' };
   }
 }
+
