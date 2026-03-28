@@ -48,25 +48,42 @@ export class MembersService {
     zaloAvatar?: string;
     phone?: string;
   }) {
-    // Generate unique codes
     const qrCode = `QR-${nanoid(8).toUpperCase()}`;
     const referralCode = `ZDC-${nanoid(6).toUpperCase()}`;
 
     try {
-      return await this.prisma.member.create({
-        data: {
-          ...data,
-          qrCode,
-          referralCode,
-          status: 'verified',
-          pointsBalance: 0,
-          pointsEarned: 0,
-          pointsSpent: 0,
-        },
+      return await this.prisma.$transaction(async (tx) => {
+        const member = await tx.member.create({
+          data: {
+            ...data,
+            qrCode,
+            referralCode,
+            status: 'verified',
+            pointsBalance: 0,
+            pointsEarned: 0,
+            pointsSpent: 0,
+          },
+        });
+
+        // Assign default tier (lowest displayOrder)
+        const defaultTier = await tx.tier.findFirst({
+          where: { isActive: true },
+          orderBy: { displayOrder: 'asc' },
+        });
+        if (defaultTier) {
+          await tx.tierHistory.create({
+            data: {
+              memberId: member.id,
+              toTierId: defaultTier.id,
+              reason: 'Đăng ký mới',
+            },
+          });
+        }
+
+        return member;
       });
     } catch (error) {
       this.logger.error(`Error creating member: ${error.message}`);
-      // Handle potential collision of random codes (though unlikely)
       if (error.code === 'P2002') {
         throw new ConflictException('MEMBER_ALREADY_EXISTS_OR_CODE_COLLISION');
       }
@@ -79,17 +96,36 @@ export class MembersService {
     const referralCode = `ZDC-${nanoid(6).toUpperCase()}`;
 
     try {
-      return await this.prisma.member.create({
-        data: {
-          zaloId: `phone_${data.phone}`,  // placeholder vì schema yêu cầu unique
-          phone: data.phone,
-          qrCode,
-          referralCode,
-          status: 'verified',
-          pointsBalance: 0,
-          pointsEarned: 0,
-          pointsSpent: 0,
-        },
+      return await this.prisma.$transaction(async (tx) => {
+        const member = await tx.member.create({
+          data: {
+            zaloId: `phone_${data.phone}`,
+            phone: data.phone,
+            qrCode,
+            referralCode,
+            status: 'verified',
+            pointsBalance: 0,
+            pointsEarned: 0,
+            pointsSpent: 0,
+          },
+        });
+
+        // Assign default tier (lowest displayOrder)
+        const defaultTier = await tx.tier.findFirst({
+          where: { isActive: true },
+          orderBy: { displayOrder: 'asc' },
+        });
+        if (defaultTier) {
+          await tx.tierHistory.create({
+            data: {
+              memberId: member.id,
+              toTierId: defaultTier.id,
+              reason: 'Đăng ký mới',
+            },
+          });
+        }
+
+        return member;
       });
     } catch (error) {
       this.logger.error(`Error creating member by phone: ${error.message}`);

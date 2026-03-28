@@ -2,13 +2,13 @@
   "meta": {
     "schema_version": "1.1.0",
     "awf_version": "4.0.2",
-    "last_updated": "2026-03-22T00:10:00+07:00"
+    "last_updated": "2026-03-27T00:42:00+07:00"
   },
   "project": {
     "name": "Zô Dứt Cạn - Backend",
     "type": "backend_api",
     "status": "in_development",
-    "description": "Hệ thống Loyalty/CRM cho chuỗi F&B 'Zô Dứt Cạn', quản lý thành viên, tích điểm, thăng hạng, giới thiệu bạn bè (referral), đổi quà, và kết nối POS CUKCUK",
+    "description": "Hệ thống Loyalty/CRM cho chuỗi F&B 'Zô Dứt Cạn', quản lý thành viên, tích điểm, thăng hạng, giới thiệu bạn bè (referral), đổi quà, kết nối POS CUKCUK, và Zalo OA Chatbot",
     "related_projects": {
       "web_admin": "d:\\senlyzer\\NextJS\\member-system-zodutcan-web-admin (port 3001)",
       "zalo_mini_app": "d:\\senlyzer\\Zalo-Mini-App\\member-system-zo-dut-can-zma"
@@ -33,7 +33,7 @@
     }
   },
   "database_schema": {
-    "summary": "Hệ thống lưu: Brand/Branch (thương hiệu/chi nhánh), Member (khách hàng), Tier (hạng thẻ), Transaction (giao dịch), Referral (giới thiệu), Points (điểm thưởng), Reward/Voucher (đổi quà), Staff (nhân viên + admin), SystemConfig",
+    "summary": "Hệ thống lưu: Brand/Branch (thương hiệu/chi nhánh), Member (khách hàng), Tier (hạng thẻ), Transaction (giao dịch), Referral (giới thiệu), Points (điểm thưởng), Reward/Voucher (đổi quà), Staff (nhân viên + admin), SystemConfig (+ Zalo OA tokens auto-managed)",
     "tables": [
       { "name": "brands", "description": "Thương hiệu (Zô Dứt Cạn)" },
       { "name": "branches", "description": "Chi nhánh, có cukcuk_branch_id để mapping POS", "key_columns": ["cukcuk_branch_id", "address"] },
@@ -50,7 +50,7 @@
       { "name": "staff", "description": "Nhân viên (admin, store_manager, cashier) — admin dùng passwordHash (bcrypt) để login web admin", "key_columns": ["phone", "role", "branch_id", "password_hash"] },
       { "name": "audit_logs", "description": "Log hành động" },
       { "name": "fraud_alerts", "description": "Cảnh báo gian lận" },
-      { "name": "system_configs", "description": "Cấu hình hệ thống per-brand (referral_earn_percent, point_rate...)" }
+      { "name": "system_configs", "description": "Cấu hình hệ thống per-brand + Zalo OA tokens (key: zalo_oa_tokens, auto-refreshed)" }
     ],
     "relationships_explained": "1 Brand có nhiều Branch. 1 Branch có nhiều Staff & Transaction. 1 Member có nhiều Transaction, PointTransaction, TierHistory, Redemption. 1 Member giới thiệu nhiều Member (referral). Mỗi Transaction có thể generate ReferralEarning cho referrer. RewardCatalog → Redemption (đổi quà). DiscountTier → Redemption (giảm giá)."
   },
@@ -71,16 +71,15 @@
     { "group": "Transactions", "method": "PATCH", "path": "/api/v1/transactions/:id/approve", "explained": "Duyệt bill → cộng spending + thăng hạng + referral 5%." },
     { "group": "Transactions", "method": "PATCH", "path": "/api/v1/transactions/:id/reject", "explained": "Từ chối bill." },
     { "group": "Webhook", "method": "POST", "path": "/api/v1/webhook/cukcuk", "explained": "Webhook POS CUKCUK → signature guard, idempotent, auto_approved." },
-    { "group": "Admin - Members", "method": "GET", "path": "/api/v1/admin/members", "explained": "Danh sách thành viên + search + pagination." },
-    { "group": "Admin - Members", "method": "GET", "path": "/api/v1/admin/members/:id", "explained": "Chi tiết thành viên (kèm referrals, tiers, transactions, point history)." },
-    { "group": "Admin - Members", "method": "POST", "path": "/api/v1/admin/members", "explained": "Tạo thành viên mới (auto referralCode, link referrer, assign default tier)." },
-    { "group": "Admin - Members", "method": "PATCH", "path": "/api/v1/admin/members/:id", "explained": "Sửa thông tin (phone, name — check dup phone)." },
-    { "group": "Admin - Members", "method": "DELETE", "path": "/api/v1/admin/members/:id", "explained": "Xóa thành viên (chặn nếu có giao dịch, cascade related data)." },
-    { "group": "Admin - Members", "method": "PATCH", "path": "/api/v1/admin/members/:id/adjust-points", "explained": "Cộng/trừ điểm (admin_add/admin_deduct) + tạo point_transaction." },
-    { "group": "Admin - Members", "method": "GET", "path": "/api/v1/admin/members/stats/overview", "explained": "Thống kê: tổng TV, mới tháng, giao dịch, doanh thu, pending bills, active referrals." },
+    { "group": "Webhook", "method": "POST", "path": "/api/v1/webhook/zalo-oa", "explained": "Webhook Zalo OA chatbot. Nhận event user_send_text → fire-and-forget async. Check keyword (doanh số/điểm) → query member by user_id_by_app → query DB realtime → gửi reply qua CS API. KHÔNG dùng DTO validation (body: any) để luôn trả 200 OK." },
+    { "group": "Admin - Members", "method": "GET/POST/PATCH/DELETE", "path": "/api/v1/admin/members", "explained": "CRUD thành viên + search + pagination + adjust-points + stats/overview." },
     { "group": "Admin - Tiers", "method": "GET/POST/PATCH/DELETE", "path": "/api/v1/admin/tiers", "explained": "CRUD hạng thẻ." },
     { "group": "Admin - Rewards", "method": "GET/POST/DELETE", "path": "/api/v1/admin/rewards", "explained": "CRUD rewards catalog + discount tiers." },
-    { "group": "Admin - Configs", "method": "GET/POST/PATCH/DELETE", "path": "/api/v1/admin/configs", "explained": "CRUD system configs + branches list." }
+    { "group": "Admin - Configs", "method": "GET/POST/PATCH/DELETE", "path": "/api/v1/admin/configs", "explained": "CRUD system configs + branches list." },
+    { "group": "Admin - Zalo OA", "method": "POST", "path": "/api/v1/admin/zalo-oa/init-token", "explained": "Khởi tạo OA token bằng refresh_token → gọi Zalo API lấy access_token mới. JwtAuthGuard." },
+    { "group": "Admin - Zalo OA", "method": "POST", "path": "/api/v1/admin/zalo-oa/save-token", "explained": "Lưu trực tiếp cặp access_token + refresh_token đã lấy sẵn từ Console. JwtAuthGuard." },
+    { "group": "Admin - Zalo OA", "method": "GET", "path": "/api/v1/admin/zalo-oa/token-status", "explained": "Xem trạng thái token (hasToken, expiresAt, isExpired, expiresInMinutes). JwtAuthGuard." },
+    { "group": "Admin - Zalo OA", "method": "POST", "path": "/api/v1/admin/zalo-oa/refresh-token", "explained": "Force refresh token ngay lập tức. JwtAuthGuard." }
   ],
   "business_rules": [
     "Hoa hồng giới thiệu: 5% giá trị bill → điểm cho referrer (1000đ = 1 điểm)",
@@ -88,29 +87,27 @@
     "5 hạng: Đồng(0), Bạc(2M,x1.2), Vàng(5M,x1.5), Bạch Kim(15M,x2.0), Kim Cương(50M,x3.0)",
     "Webhook CUKCUK: auto_approved nếu có member, pending_review nếu bill mồ côi",
     "Idempotent: trùng pos_bill_id → skip",
-    "Referral: pending → active khi bill đầu tiên được duyệt",
+    "Referral: pending → active khi bill đầu tiên ≥ 100K được duyệt",
     "Admin tạo member: auto-gen referralCode ZDC-XXXXXX + assign tier thấp nhất",
     "Admin xóa member: chặn nếu đã có giao dịch, cascade cleanup related data",
-    "Đổi quà: kiểm tra pointsBalance >= pointsRequired, quantityLimit (còn hàng?), perMemberLimit (đã đổi bao nhiêu?), validFrom/validUntil (thời hạn chương trình)",
+    "Đổi quà: kiểm tra pointsBalance >= pointsRequired, quantityLimit, perMemberLimit, validFrom/validUntil",
     "Đổi quà: atomic Prisma $transaction → create Redemption + PointTransaction + update member balance + increment quantityRedeemed",
     "Voucher code format: ZDC-V-XXXXXXXX (nanoid 8 chars), hết hạn sau 30 ngày",
     "Discount tiers: 5%(20pts,max25K), 10%(40pts,max50K), 15%(70pts,max100K), 20%(120pts,max200K)",
     "Admin login: chỉ role admin/store_manager, bcrypt password, JWT response",
     "Zalo Login: ZMA getUserInfo() (client-side, trả trực tiếp zaloId/name/avatar) + getAuthCode() → backend exchangeAuthCode (verification only) → find/create member. KHÔNG cần graph.zalo.me!",
-    "Complete Profile: phone is OPTIONAL. Endpoint handles refCode-only (new user) hoặc phone-only (from dashboard) hoặc cả hai",
-    "Phone merge logic: nếu SĐT đã có member phone-login (zaloId starts with 'phone_') → DELETE Zalo member TRƯỚC (free unique zaloId) → UPDATE phone member với Zalo info. Dùng $transaction atomic.",
-    "Zalo login new user flow: ZMA getUserInfo → backend create member (no phone) → return isNewUser=true → redirect /complete-profile (refCode only) → skip or enter → dashboard",
-    "Add phone flow: Dashboard card '+ Thêm SĐT' → /add-phone page → PATCH /auth/complete-profile {phone} → merge or update → back to dashboard"
+    "Zalo OA Chatbot: keyword trigger (doanh số/điểm) → query DB realtime → reply qua CS API (openapi.zalo.me/v3.0/oa/message/cs). Fire-and-forget, trả 200 ngay.",
+    "Zalo OA Token: access_token hết hạn ~25h → auto-refresh bằng refresh_token → lưu DB (system_configs). Refresh token dùng 1 lần, hết hạn 3 tháng."
   ],
   "modules": [
     { "name": "AuthModule", "files": ["auth/"], "notes": "zalo-login (OAuth v4 + refCode), phone-login, admin-login (bcrypt), complete-profile (phone+refCode optional, merge logic)" },
     { "name": "MembersModule", "files": ["members/"], "notes": "Public API cho ZMA + rewards/discount-tiers/vouchers + POST /redeem" },
     { "name": "TransactionsModule", "files": ["transactions/"] },
     { "name": "ReferralsModule", "files": ["referrals/"] },
-    { "name": "WebhookModule", "files": ["webhook/"] },
-    { "name": "ZaloModule", "files": ["zalo/"], "notes": "exchangeAuthCode only (PKCE verification). getUserInfo removed — data comes from ZMA frontend" },
+    { "name": "WebhookModule", "files": ["webhook/"], "notes": "CUKCUK webhook + Zalo OA chatbot webhook. ZaloOaChatbotService (keyword match → DB query → format → send via OA CS API). Imports ZaloModule for auto-refresh token." },
+    { "name": "ZaloModule", "files": ["zalo/"], "notes": "exchangeAuthCode (PKCE verification) + OA Token Management (getOaAccessToken, refreshOaToken, initOaToken, initOaTokenDirect, getOaTokenStatus). Token stored in system_configs table, 3-layer cache (memory → DB → refresh)." },
     { "name": "PrismaModule", "files": ["prisma/"] },
-    { "name": "AdminModule", "files": ["admin/"], "notes": "Tất cả admin endpoints: members, tiers, rewards, configs. Folder riêng src/admin/" }
+    { "name": "AdminModule", "files": ["admin/"], "notes": "members, tiers, rewards, configs + AdminZaloOaController (init-token, save-token, token-status, refresh-token). Imports ZaloModule." }
   ],
   "knowledge_items": {
     "patterns": [
@@ -119,37 +116,23 @@
       "Guard pattern: CukcukSignatureGuard, StaffAuthGuard, JwtAuthGuard",
       "Promise.all for parallel queries (timeline)",
       "Admin APIs separated in src/admin/ folder (controllers, services, dto)",
-      "Frontend calls backend API via lib/api.ts fetch client (Next.js web admin)",
       "ZMA calls backend via axios api service + Jotai atoms for state management",
-      "Redeem: RedeemDto(type, itemId) → service validates → prisma $transaction atomic",
-      "Admin login: bcryptjs compare → JWT with type='staff' + role",
-      "Web Admin auth: JWT in localStorage (admin_token), ConditionalLayout hides sidebar on /login",
-      "Zalo Login: ZMA getUserInfo() (client-side, direct) + getAuthCode() → backend exchangeAuthCode() at oauth.zaloapp.com (verification only). No graph.zalo.me needed!"
+      "Zalo OA webhook: @Body() body: any (bypass ValidationPipe) — webhook MUST always return 200",
+      "Zalo OA Token: 3-layer cache (in-memory → DB system_configs → auto-refresh via Zalo OAuth API)",
+      "Fire-and-forget pattern: controller.catch() without await → return 200 immediately"
     ],
     "gotchas": [
       "JwtStrategy requires JWT_SECRET in .env — empty string '' causes crash",
       "Backend port 3003 (not default 3000) — set in .env PORT=3003",
-      "Seed upsert needs update clause for new fields (cukcukBranchId)",
-      "Role: DB has 'store_manager', accept both 'store_manager' and 'manager'",
+      "Zalo OA có 2 loại User ID: sender.id (OA-scoped, dùng gửi reply) vs user_id_by_app (App-scoped, = zaloId trong DB). PHẢI dùng user_id_by_app để query member!",
+      "Zalo OA Access Token hết hạn ~25h (expires_in='90000' dạng STRING). Refresh token dùng 1 lần, hết hạn 3 tháng.",
+      "Zalo OA refresh endpoint: /v4/oa/access_token (KHÔNG PHẢI /v4/access_token — đó là Social API)",
+      "Zalo OA gửi tin nhắn qua API cần ít nhất gói Dùng thử (10K/tháng). Gói Cơ bản miễn phí chỉ cho manual reply.",
+      "OA ID (162641867055414153) KHÁC với App ID (4243775393589850681). ZMA openChat dùng OA ID.",
+      "Global ValidationPipe forbidNonWhitelisted: true → webhook endpoint PHẢI dùng @Body() body: any, KHÔNG dùng DTO class",
       "Prisma BigInt → JSON needs Number() conversion",
-      "Tier themeConfig is Json field → frontend needs typed interface",
-      "Member create requires zaloId + qrCode (unique) — admin uses admin_{phone} and placeholder",
-      "Server Component cannot use onClick — use Client Component wrapper (ClickableRow pattern)",
-      "Next.js NEXT_PUBLIC_API_URL needed in .env for client-side API calls",
-      "zmp-ui Modal renders inside Page scroll container (position: relative) → modal stuck at bottom. Fixed with createPortal to document.body",
-      "zmp-ui class prefix is 'zaui' (e.g. zaui-modal, zaui-mask, zaui-modal-wrapper)",
-      "PowerShell: curl is alias for Invoke-WebRequest, use curl.exe for raw HTTP",
-      "Jotai async atoms: redeem() returns Promise, components must async/await + loading state",
-      "✅ SOLVED: graph.zalo.me IP block bypassed! ZMA getUserInfo() lấy data client-side, backend chỉ dùng oauth.zaloapp.com (không bị chặn)",
-      "Zalo có 2 ID khác nhau: Zalo App ID (cha: 4243775393589850681) vs Mini App ID (con: 1756817649065317309). Backend ZALO_APP_ID dùng App cha, ZMA APP_ID dùng Mini App con.",
-      "ZMP SDK getUserInfo({autoRequestPermission:true}) trả {id, name, avatar} trực tiếp — KHÔNG cần server giải mã",
-      "ZMP SDK getPhoneNumber() trả token mã hóa — CẦN server giải mã qua graph.zalo.me → vẫn bị chặn IP. Nên dùng zaloId thay vì phone.",
-      "ZMP SDK getAuthCode() trả {authCode, authCodeVerify} — authCodeVerify chính là code_verifier cho PKCE",
-      "Coolify on DigitalOcean Singapore: SSL Let's Encrypt có thể chưa provision + container 502 Bad Gateway nếu app chưa chạy",
-      "JWT Strategy validate() trả req.user = { id, ...member, userType }. Controller phải dùng req.user.id, KHÔNG PHẢI req.user.sub (sub chỉ có trong JWT payload raw, không trong req.user)",
-      "completeProfile merge order: PHẢI DELETE new member TRƯỚC (free unique zaloId), rồi UPDATE old member. Ngược lại → unique constraint violation!",
-      "ZMP Router navigate() KHÔNG hỗ trợ query params (?mode=phone). Dùng route riêng thay vì URL params.",
-      "git commit --amend sau khi đã push → conflict khi pull. Chỉ amend TRƯỚC khi push!"
+      "ZMP SDK openChat({type:'oa', id: OA_ID, message:'doanh số'}) — mở chat OA + pre-fill message",
+      "completeProfile merge order: PHẢI DELETE new member TRƯỚC (free unique zaloId) → UPDATE old member"
     ]
   },
   "seed_data": {
@@ -163,8 +146,17 @@
   "zalo_integration": {
     "zalo_app_id": "4243775393589850681 (App cha: HệThốngThànhViênZôDứtCạn)",
     "mini_app_id": "1756817649065317309 (Mini App: Zô Dứt Cạn)",
+    "oa_id": "162641867055414153 (Official Account: Zô Dứt Cạn)",
     "oauth_flow": "ZMA getUserInfo() (client-side) + getAuthCode() → backend exchangeAuthCode (PKCE verification only)",
-    "current_status": "IMPLEMENTED — getUserInfo() on frontend bypasses IP restriction. Backend verifies via oauth.zaloapp.com only.",
-    "blocker": "NONE — IP restriction bypassed by using ZMA SDK getUserInfo() client-side"
+    "oa_chatbot": {
+      "webhook_url": "https://member-system-zo-dut-can-backend.vercel.app/api/v1/webhook/zalo-oa",
+      "keywords": ["doanh số", "doanh so", "điểm", "diem"],
+      "reply_api": "POST https://openapi.zalo.me/v3.0/oa/message/cs",
+      "token_refresh_api": "POST https://oauth.zaloapp.com/v4/oa/access_token",
+      "token_storage": "system_configs table (key: zalo_oa_tokens)",
+      "status": "CODE DONE — cần OA đăng ký gói Dùng thử (10K/tháng) để gửi tin nhắn qua API"
+    },
+    "current_status": "IMPLEMENTED — getUserInfo() on frontend bypasses IP restriction. OA Chatbot code done, pending OA tier package activation.",
+    "blocker": "OA cần gói Dùng thử (10.000đ/tháng) tại zalo.cloud/oa/pricing để gửi tin nhắn qua CS API"
   }
 }

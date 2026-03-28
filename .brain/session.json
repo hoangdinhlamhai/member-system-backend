@@ -1,80 +1,76 @@
 {
-  "updated_at": "2026-03-22T00:10:00+07:00",
+  "updated_at": "2026-03-27T00:42:00+07:00",
   "working_on": {
-    "feature": "Zalo Login Flow + Complete Profile + Phone Update",
-    "task": "All done — Deploy & test",
-    "status": "completed",
+    "feature": "Zalo OA Chatbot + Auto-refresh Token",
+    "task": "Code done — cần OA đăng ký gói Dùng thử để test gửi tin nhắn",
+    "status": "blocked_external",
     "files": [
-      "BE: src/auth/auth.service.ts (zaloLogin + completeProfile refactored)",
-      "BE: src/auth/auth.controller.ts (complete-profile endpoint, fixed req.user.id)",
-      "BE: src/auth/dto/complete-profile.dto.ts (phone optional)",
-      "ZMA: src/pages/login.tsx (Zalo → new user → /complete-profile, else → /dashboard)",
-      "ZMA: src/pages/complete-profile.tsx (referral code only)",
-      "ZMA: src/pages/add-phone.tsx (phone update from dashboard)",
-      "ZMA: src/pages/dashboard.tsx (personal info card + add phone button)",
-      "ZMA: src/components/layout.tsx (added /add-phone route)"
+      "BE: src/webhook/webhook.controller.ts (zalo-oa webhook, body: any bypass validation)",
+      "BE: src/webhook/zalo-oa-chatbot.service.ts (keyword match → DB query → format → send reply)",
+      "BE: src/webhook/dto/zalo-oa-webhook.dto.ts (class-validator decorators)",
+      "BE: src/webhook/webhook.module.ts (imports ZaloModule)",
+      "BE: src/zalo/zalo.service.ts (getOaAccessToken, refreshOaToken, initOaToken, initOaTokenDirect)",
+      "BE: src/zalo/zalo.module.ts (imports PrismaModule)",
+      "BE: src/admin/controllers/admin-zalo-oa.controller.ts (init-token, save-token, token-status, refresh-token)",
+      "BE: src/admin/admin.module.ts (imports ZaloModule + AdminZaloOaController)",
+      "ZMA: src/pages/dashboard.tsx (added chatbot button with openChat API)"
     ],
-    "blockers": [],
-    "notes": "All features working. Ready for deploy + testing."
+    "blockers": ["OA cần đăng ký gói Dùng thử (10K/tháng) tại zalo.cloud/oa/pricing"],
+    "notes": "Webhook verified ✅, keyword matching works ✅, DB query works ✅, token auto-refresh works ✅. Only blocked by Zalo OA tier package for sending messages via API."
   },
   "pending_tasks": [
-    { "task": "Deploy backend + ZMA and test full flow", "priority": "high", "notes": "git commit + push (backend had merge conflict, now resolved)" },
+    { "task": "Đăng ký gói Dùng thử cho Zalo OA", "priority": "high", "notes": "zalo.cloud/oa/pricing — 10.000đ/tháng. Sau đó test chatbot lại." },
     { "task": "Fix Coolify VPS: SSL + 502 Bad Gateway", "priority": "medium", "notes": "zo-dut-can-be.duckdns.org on DigitalOcean 157.245.156.189" },
-    { "task": "Test login page Web Admin (localhost:3001/login)", "priority": "medium", "notes": "Account: 0123456789 / 123456" },
-    { "task": "Implement ZNS notifications", "priority": "high", "notes": "Sprint 3" },
     { "task": "Monthly spending reset (cron job)", "priority": "medium", "notes": "" },
     { "task": "Points expiry cron (12 tháng)", "priority": "medium", "notes": "" },
-    { "task": "Admin: Fraud page + Webhook page", "priority": "medium", "notes": "" }
+    { "task": "Admin: Fraud page + Webhook page", "priority": "medium", "notes": "" },
+    { "task": "Admin UI: Zalo OA token status page", "priority": "low", "notes": "Hiển thị token status, manual refresh button" }
   ],
   "recent_changes": [
     {
-      "timestamp": "2026-03-21T23:49:00+07:00",
-      "type": "docs",
-      "description": "Updated implementation-plan.md: Sprint progress ~55%, Zalo OAuth marked DONE, added new features to completed list, detailed actual OAuth flow with IP restriction explanation",
-      "files": ["BE: docs/implementation-plan.md"]
-    },
-    {
-      "timestamp": "2026-03-21T23:25:00+07:00",
+      "timestamp": "2026-03-27T00:42:00+07:00",
       "type": "feature",
-      "description": "Split complete-profile into 2 pages: /complete-profile (refCode only for new users) + /add-phone (SĐT update from dashboard). Added route in layout.tsx.",
-      "files": ["ZMA: pages/add-phone.tsx (NEW)", "ZMA: pages/complete-profile.tsx (simplified)", "ZMA: components/layout.tsx", "ZMA: pages/dashboard.tsx"]
+      "description": "Implemented full Zalo OA Chatbot: webhook endpoint (fire-and-forget), keyword matching (doanh số/điểm), realtime DB query (member, tier, monthly sales, referrals), formatted reply via CS API. Auto-refresh OA token mechanism with 3-layer cache (memory → DB → Zalo API). Admin endpoints for token management.",
+      "files": [
+        "BE: src/webhook/webhook.controller.ts",
+        "BE: src/webhook/zalo-oa-chatbot.service.ts (NEW)",
+        "BE: src/webhook/dto/zalo-oa-webhook.dto.ts (NEW)",
+        "BE: src/zalo/zalo.service.ts (added OA token methods)",
+        "BE: src/admin/controllers/admin-zalo-oa.controller.ts (NEW)",
+        "ZMA: src/pages/dashboard.tsx (chatbot button)"
+      ]
     },
     {
-      "timestamp": "2026-03-21T23:08:00+07:00",
+      "timestamp": "2026-03-27T00:12:00+07:00",
       "type": "bugfix",
-      "description": "Fixed merge conflict in auth.service.ts caused by accidental git commit --amend. Resolved both conflict blocks (zaloLogin refCode + completeProfile $transaction).",
-      "files": ["BE: src/auth/auth.service.ts"]
+      "description": "Fixed Zalo OA dual user ID issue: sender.id (OA-scoped) for reply vs user_id_by_app (App-scoped = zaloId in DB) for member lookup. Was using wrong ID to query DB.",
+      "files": ["BE: src/webhook/webhook.controller.ts", "BE: src/webhook/zalo-oa-chatbot.service.ts"]
     },
     {
-      "timestamp": "2026-03-21T17:43:00+07:00",
+      "timestamp": "2026-03-27T00:04:00+07:00",
       "type": "bugfix",
-      "description": "Fixed completeProfile merge logic: unique constraint violation on zaloId. Changed order to DELETE new member FIRST (free zaloId), THEN update old member. Wrapped in Prisma $transaction for atomicity.",
-      "files": ["BE: src/auth/auth.service.ts"]
+      "description": "Fixed webhook 400 error: Global ValidationPipe (forbidNonWhitelisted) was rejecting Zalo's verification POST. Changed @Body() dto: ZaloOaWebhookDto → @Body() body: any to bypass validation.",
+      "files": ["BE: src/webhook/webhook.controller.ts"]
     },
     {
-      "timestamp": "2026-03-21T23:33:00+07:00",
-      "type": "bugfix",
-      "description": "Fixed 401 error on PATCH /auth/complete-profile: JWT strategy returns req.user.id (not req.user.sub). Controller was using req.user.sub → undefined → Prisma findUnique failed.",
-      "files": ["BE: src/auth/auth.controller.ts"]
-    },
-    {
-      "timestamp": "2026-03-21T10:00:00+07:00",
+      "timestamp": "2026-03-26T23:06:00+07:00",
       "type": "feature",
-      "description": "Implemented full Zalo login flow: ZMA getUserInfo() → backend find/create member → JWT. Dashboard personal info card with + Add Phone button. Complete profile page for refCode.",
-      "files": ["BE: auth/auth.service.ts, auth.controller.ts, dto/complete-profile.dto.ts", "ZMA: pages/login.tsx, pages/complete-profile.tsx, pages/dashboard.tsx, components/layout.tsx"]
+      "description": "Implemented OA token auto-refresh: tokens stored in system_configs DB table, 3-layer cache, auto-refresh 5min before expiry. Fixed OA endpoint (/v4/oa/access_token not /v4/access_token) and expires_in string parsing.",
+      "files": ["BE: src/zalo/zalo.service.ts"]
     }
   ],
   "errors_encountered": [
-    { "error": "completeProfile 500: unique constraint violation on zaloId during merge", "solution": "Must DELETE new member FIRST to free zaloId, THEN update old member. Use $transaction.", "resolved": true },
-    { "error": "completeProfile 401: COMPLETE_PROFILE_FAILED - prisma.member.findUnique id: undefined", "solution": "JWT strategy returns req.user.id (from member spread), NOT req.user.sub. Changed controller to use req.user.id.", "resolved": true },
-    { "error": "Git merge conflict after commit --amend on already-pushed commit", "solution": "Resolved merge conflicts manually, committed fresh. Lesson: don't amend after push.", "resolved": true },
-    { "error": "Zalo graph.zalo.me error -501: IP restriction", "solution": "RESOLVED: ZMA getUserInfo() client-side bypass. Backend only uses oauth.zaloapp.com.", "resolved": true }
+    { "error": "Zalo webhook verification returns 400", "solution": "Global ValidationPipe forbidNonWhitelisted:true rejects unknown fields. Use @Body() body: any instead of DTO class for webhook endpoints.", "resolved": true },
+    { "error": "OA chatbot sends wrong ID to query DB → member not found", "solution": "Zalo sends 2 different IDs: sender.id (OA-scoped, for reply) vs user_id_by_app (App-scoped = zaloId in DB). Use user_id_by_app for DB lookup.", "resolved": true },
+    { "error": "OA token refresh calls wrong endpoint", "solution": "OA uses /v4/oa/access_token (not /v4/access_token which is Social API). Also expires_in is STRING '90000' not number.", "resolved": true },
+    { "error": "Zalo OA CS API returns 'OA Tier Package to use this feature'", "solution": "OA needs at least 'Dùng thử' package (10K/month) at zalo.cloud/oa/pricing to send messages via API.", "resolved": false }
   ],
   "decisions_made": [
-    { "decision": "Zalo login → NO phone collection at login time", "reason": "getPhoneNumber() requires Vietnam server. User adds phone later from dashboard." },
-    { "decision": "New user redirect to /complete-profile for refCode only", "reason": "User wanted refCode input for new members, but skip phone" },
-    { "decision": "Separate /add-phone page instead of URL params", "reason": "ZMP Router doesn't properly support query params in navigate(). Dedicated route is cleaner." },
-    { "decision": "CompleteProfileDto: phone is now optional", "reason": "Endpoint handles both refCode-only (from login) and phone-only (from dashboard) cases" },
-    { "decision": "Merge logic: DELETE first, UPDATE second in $transaction", "reason": "Prevents unique constraint violation on zaloId. Atomic ensures both succeed or both rollback." }
+    { "decision": "Webhook endpoint uses @Body() body: any instead of DTO", "reason": "Global ValidationPipe rejects unknown fields. Webhook must ALWAYS return 200 OK regardless of payload format." },
+    { "decision": "Token stored in DB (system_configs) not .env", "reason": "Dynamic — code can auto-update without restart. Persists across deploys." },
+    { "decision": "3-layer token cache: memory → DB → API refresh", "reason": "Minimize DB reads (memory cache). Persist across restarts (DB). Auto-refresh before expiry (API)." },
+    { "decision": "Fire-and-forget pattern for chatbot processing", "reason": "Zalo requires fast response. All processing runs async, controller returns 200 immediately." },
+    { "decision": "Use Zalo OA CS API (/v3.0/oa/message/cs) not ZNS", "reason": "CS API is free (within OA package). ZNS is paid per message (template-based)." },
+    { "decision": "ZMA chatbot button uses openChat({type:'oa'}) with pre-filled message", "reason": "Native Zalo experience — opens OA chat directly in Zalo app." }
   ]
 }
