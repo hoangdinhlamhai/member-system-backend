@@ -480,7 +480,7 @@ export class TransactionsService {
           finalAmount: BigInt(dto.amount),
           source: 'staff_manual',
           status: 'pending_review',
-          billImageUrl: null,
+          billImageUrl: dto.bill_image_url || null,
           staffId: staff.id,
         },
       });

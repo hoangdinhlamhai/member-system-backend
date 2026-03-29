@@ -12,6 +12,7 @@ import { ReferralsModule } from './referrals/referrals.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { WebhookModule } from './webhook/webhook.module';
 import { AdminModule } from './admin/admin.module';
+import { UploadModule } from './upload/upload.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { AdminModule } from './admin/admin.module';
     TransactionsModule,
     WebhookModule,
     AdminModule,
+    UploadModule,
   ],
   controllers: [AppController],
   providers: [AppService],

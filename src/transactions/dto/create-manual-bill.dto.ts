@@ -1,4 +1,11 @@
-import { IsNotEmpty, IsString, IsNumber, IsUUID, Min } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsString,
+  IsNumber,
+  IsUUID,
+  IsOptional,
+  Min,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateManualBillDto {
@@ -14,4 +21,8 @@ export class CreateManualBillDto {
   @IsUUID('4', { message: 'member_id phải là UUID hợp lệ.' })
   @IsNotEmpty({ message: 'member_id không được để trống.' })
   member_id: string;
+
+  @IsOptional()
+  @IsString({ message: 'bill_image_url phải là chuỗi ký tự.' })
+  bill_image_url?: string;
 }
