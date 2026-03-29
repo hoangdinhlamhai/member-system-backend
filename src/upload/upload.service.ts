@@ -29,12 +29,7 @@ export class UploadService {
   }
 
   /**
-   * Upload a file buffer to GCS and return the public URL.
-   *
-   * @param fileBuffer - Raw file buffer
-   * @param originalName - Original file name (for extension)
-   * @param folder - GCS folder prefix (e.g. 'bill-images')
-   * @returns Public URL of the uploaded file
+   * Upload a file buffer to GCS, make it public, return permanent URL.
    */
   async uploadFile(
     fileBuffer: Buffer,
@@ -43,24 +38,26 @@ export class UploadService {
   ): Promise<string> {
     const ext = path.extname(originalName) || '.jpg';
     const fileName = `${folder}/${randomUUID()}${ext}`;
+    const contentType = this.getContentType(ext);
 
     const bucket = this.storage.bucket(this.bucketName);
     const file = bucket.file(fileName);
 
-    await file.save(fileBuffer, {
-      metadata: {
-        contentType: this.getContentType(ext),
-      },
-      resumable: false,
-    });
+    try {
+      await file.save(fileBuffer, {
+        metadata: { contentType },
+        resumable: false,
+      });
 
-    // Make the file publicly readable
-    await file.makePublic();
+      await file.makePublic();
 
-    const publicUrl = `https://storage.googleapis.com/${this.bucketName}/${fileName}`;
-
-    this.logger.log(`Uploaded: ${publicUrl}`);
-    return publicUrl;
+      const publicUrl = `https://storage.googleapis.com/${this.bucketName}/${fileName}`;
+      this.logger.log(`Uploaded: ${publicUrl}`);
+      return publicUrl;
+    } catch (error) {
+      this.logger.error(`GCS upload failed: ${error.message}`, error.stack);
+      throw error;
+    }
   }
 
   private getContentType(ext: string): string {
