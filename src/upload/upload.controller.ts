@@ -1,20 +1,14 @@
 import {
   Controller,
   Post,
+  Get,
   UseGuards,
-  UseInterceptors,
-  UploadedFile,
+  Query,
   BadRequestException,
-  ParseFilePipe,
-  MaxFileSizeValidator,
-  FileTypeValidator,
   Logger,
-  Req,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
 import { StaffAuthGuard } from '../auth/guards/staff-auth.guard';
 import { UploadService } from './upload.service';
-import type { Request } from 'express';
 
 @Controller('api/v1/upload')
 export class UploadController {
@@ -23,56 +17,85 @@ export class UploadController {
   constructor(private readonly uploadService: UploadService) {}
 
   /**
-   * POST /api/v1/upload/bill-image
-   * Staff uploads a bill image → returns GCS URL
-   *
-   * Body: multipart/form-data with field "file"
-   * Max: 5MB, JPG/PNG/WEBP only
+   * GET /api/v1/upload/signed-url?fileName=xxx.jpg&contentType=image/jpeg
+   * Returns a signed URL for direct frontend → GCS upload.
+   * No file data passes through Vercel — bypasses body size limits.
    */
-  @Post('bill-image')
+  @Get('signed-url')
   @UseGuards(StaffAuthGuard)
-  @UseInterceptors(FileInterceptor('file'))
-  async uploadBillImage(
-    @Req() req: Request,
-    @UploadedFile(
-      new ParseFilePipe({
-        validators: [
-          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }), // 5MB
-          new FileTypeValidator({ fileType: /^image\/(jpeg|jpg|png|webp|heic|heif)$/ }),
-        ],
-        fileIsRequired: true,
-      }),
-    )
-    file: Express.Multer.File,
+  async getSignedUrl(
+    @Query('fileName') fileName: string,
+    @Query('contentType') contentType: string,
   ) {
-    this.logger.log(`[UPLOAD] Request received`);
-    this.logger.log(`[UPLOAD] Content-Type: ${req.headers['content-type']}`);
-    this.logger.log(`[UPLOAD] File present: ${!!file}`);
-
-    if (file) {
-      this.logger.log(`[UPLOAD] File info: name=${file.originalname}, size=${file.size}, mimetype=${file.mimetype}`);
+    if (!fileName) {
+      throw new BadRequestException('fileName is required');
     }
 
-    if (!file) {
-      this.logger.error('[UPLOAD] No file in request body');
-      throw new BadRequestException('Vui lòng chọn ảnh bill để upload.');
+    const allowedTypes = [
+      'image/jpeg',
+      'image/jpg',
+      'image/png',
+      'image/webp',
+      'image/heic',
+      'image/heif',
+    ];
+
+    const resolvedType = contentType || 'image/jpeg';
+    if (!allowedTypes.includes(resolvedType)) {
+      throw new BadRequestException(
+        `Loại file không hợp lệ: ${resolvedType}. Chỉ chấp nhận JPG, PNG, WEBP, HEIC.`,
+      );
     }
 
     try {
-      const url = await this.uploadService.uploadFile(
-        file.buffer,
-        file.originalname,
+      const result = await this.uploadService.generateSignedUploadUrl(
+        fileName,
+        resolvedType,
         'bill-images',
       );
 
-      this.logger.log(`[UPLOAD] Success: ${url}`);
+      this.logger.log(`[UPLOAD] Signed URL created for: ${fileName}`);
       return {
         success: true,
-        data: { url },
+        data: result,
+      };
+    } catch (error) {
+      this.logger.error(
+        `[UPLOAD] Signed URL failed: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * POST /api/v1/upload/confirm?fileName=bill-images/xxx.jpg
+   * After frontend uploads to GCS, call this to make the file public.
+   */
+  @Post('confirm')
+  @UseGuards(StaffAuthGuard)
+  async confirmUpload(@Query('fileName') fileName: string) {
+    if (!fileName) {
+      throw new BadRequestException('fileName is required');
+    }
+
+    try {
+      await this.uploadService.makeFilePublic(fileName);
+      const publicUrl = `https://storage.googleapis.com/${
+        process.env.GCS_BUCKET_NAME || 'zo-dut-can-storage'
+      }/${fileName}`;
+
+      this.logger.log(`[UPLOAD] Confirmed public: ${publicUrl}`);
+      return {
+        success: true,
+        data: { url: publicUrl },
         message: 'Upload ảnh bill thành công.',
       };
     } catch (error) {
-      this.logger.error(`[UPLOAD] Failed: ${error.message}`, error.stack);
+      this.logger.error(
+        `[UPLOAD] Confirm failed: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }

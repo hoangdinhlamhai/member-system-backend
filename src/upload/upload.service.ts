@@ -29,6 +29,44 @@ export class UploadService {
   }
 
   /**
+   * Generate a signed URL for direct frontend → GCS upload.
+   * Returns { signedUrl, publicUrl, fileName }.
+   */
+  async generateSignedUploadUrl(
+    originalName: string,
+    contentType: string,
+    folder = 'bill-images',
+  ): Promise<{ signedUrl: string; publicUrl: string; fileName: string }> {
+    const ext = path.extname(originalName) || '.jpg';
+    const fileName = `${folder}/${randomUUID()}${ext}`;
+
+    const bucket = this.storage.bucket(this.bucketName);
+    const file = bucket.file(fileName);
+
+    const [signedUrl] = await file.getSignedUrl({
+      version: 'v4',
+      action: 'write',
+      expires: Date.now() + 15 * 60 * 1000, // 15 minutes
+      contentType,
+    });
+
+    const publicUrl = `https://storage.googleapis.com/${this.bucketName}/${fileName}`;
+
+    this.logger.log(`Signed URL generated for: ${fileName}`);
+    return { signedUrl, publicUrl, fileName };
+  }
+
+  /**
+   * Make an uploaded file public (called after frontend uploads via signed URL).
+   */
+  async makeFilePublic(fileName: string): Promise<void> {
+    const bucket = this.storage.bucket(this.bucketName);
+    const file = bucket.file(fileName);
+    await file.makePublic();
+    this.logger.log(`Made public: ${fileName}`);
+  }
+
+  /**
    * Upload a file buffer to GCS, make it public, return permanent URL.
    */
   async uploadFile(
@@ -71,3 +109,4 @@ export class UploadService {
     return map[ext.toLowerCase()] || 'application/octet-stream';
   }
 }
+
