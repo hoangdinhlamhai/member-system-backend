@@ -5,6 +5,7 @@ import {
   UseGuards,
   Query,
   BadRequestException,
+  InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
 import { StaffAuthGuard } from '../auth/guards/staff-auth.guard';
@@ -18,8 +19,6 @@ export class UploadController {
 
   /**
    * GET /api/v1/upload/signed-url?fileName=xxx.jpg&contentType=image/jpeg
-   * Returns a signed URL for direct frontend → GCS upload.
-   * No file data passes through Vercel — bypasses body size limits.
    */
   @Get('signed-url')
   @UseGuards(StaffAuthGuard)
@@ -64,13 +63,15 @@ export class UploadController {
         `[UPLOAD] Signed URL failed: ${error.message}`,
         error.stack,
       );
-      throw error;
+      // Trả lỗi chi tiết thay vì generic "Internal server error"
+      throw new InternalServerErrorException(
+        `GCS signed URL failed: ${error.message}`,
+      );
     }
   }
 
   /**
    * POST /api/v1/upload/confirm?fileName=bill-images/xxx.jpg
-   * After frontend uploads to GCS, call this to make the file public.
    */
   @Post('confirm')
   @UseGuards(StaffAuthGuard)
@@ -96,7 +97,10 @@ export class UploadController {
         `[UPLOAD] Confirm failed: ${error.message}`,
         error.stack,
       );
-      throw error;
+      throw new InternalServerErrorException(
+        `GCS confirm failed: ${error.message}`,
+      );
     }
   }
 }
+

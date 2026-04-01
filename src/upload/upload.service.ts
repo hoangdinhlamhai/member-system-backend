@@ -12,19 +12,47 @@ export class UploadService {
 
   constructor(private configService: ConfigService) {
     const keyFile = this.configService.get<string>('GCS_KEY_FILE');
+    const credentialsJson = this.configService.get<string>('GCS_CREDENTIALS');
     const projectId = this.configService.get<string>('GCS_PROJECT_ID');
 
     this.bucketName =
       this.configService.get<string>('GCS_BUCKET_NAME') ||
       'zo-dut-can-storage';
 
-    this.storage = new Storage({
-      projectId,
-      keyFilename: keyFile,
-    });
+    // Ưu tiên GCS_CREDENTIALS (env var, dùng trên Vercel)
+    // Fallback: GCS_KEY_FILE (file path, dùng local)
+    if (credentialsJson) {
+      try {
+        let jsonStr = credentialsJson;
+
+        // Nếu là base64 encoded (không bắt đầu bằng '{')
+        if (!jsonStr.trim().startsWith('{')) {
+          jsonStr = Buffer.from(jsonStr, 'base64').toString('utf-8');
+          this.logger.log('GCS_CREDENTIALS decoded from base64');
+        }
+
+        const credentials = JSON.parse(jsonStr);
+
+        // Fix: Vercel có thể double-escape \\n → cần chuyển thành real newline
+        if (credentials.private_key) {
+          credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
+        }
+
+        this.storage = new Storage({ projectId, credentials });
+        this.logger.log(
+          `GCS initialized with env credentials, client_email=${credentials.client_email}`,
+        );
+      } catch (e) {
+        this.logger.error(`Failed to parse GCS_CREDENTIALS: ${e.message}`);
+        this.storage = new Storage({ projectId, keyFilename: keyFile });
+      }
+    } else {
+      this.storage = new Storage({ projectId, keyFilename: keyFile });
+      this.logger.log('GCS initialized with key file');
+    }
 
     this.logger.log(
-      `GCS initialized: bucket=${this.bucketName}, project=${projectId}`,
+      `GCS config: bucket=${this.bucketName}, project=${projectId}`,
     );
   }
 
