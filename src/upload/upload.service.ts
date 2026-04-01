@@ -54,6 +54,28 @@ export class UploadService {
     this.logger.log(
       `GCS config: bucket=${this.bucketName}, project=${projectId}`,
     );
+
+    // Auto-configure CORS cho bucket để frontend có thể PUT trực tiếp
+    this.ensureBucketCors().catch((err) =>
+      this.logger.warn(`Failed to set bucket CORS (may already be set): ${err.message}`),
+    );
+  }
+
+  /**
+   * Tự động cấu hình CORS cho GCS bucket.
+   * Cho phép frontend PUT file trực tiếp qua signed URL.
+   */
+  private async ensureBucketCors(): Promise<void> {
+    const bucket = this.storage.bucket(this.bucketName);
+    await bucket.setCorsConfiguration([
+      {
+        origin: ['*'],
+        method: ['PUT', 'GET', 'HEAD', 'OPTIONS'],
+        responseHeader: ['Content-Type', 'x-goog-resumable'],
+        maxAgeSeconds: 3600,
+      },
+    ]);
+    this.logger.log(`GCS CORS configured for bucket: ${this.bucketName}`);
   }
 
   /**
